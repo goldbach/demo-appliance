@@ -1,0 +1,64 @@
+#!/bin/sh
+# initramfs-tools boot script for boot=live.
+# When the kernel cmdline contains boot=live, initramfs-tools sources this
+# file and calls mountroot() instead of the normal local/nfs disk discovery.
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case $1 in prereqs) prereqs; exit 0;; esac
+
+. /scripts/functions
+
+SQUASHFS_RELPATH=live/filesystem.squashfs
+
+# Scan block devices for the one carrying live/filesystem.squashfs.
+# Returns the device path on stdout; sets LIVE_MOUNT to the mountpoint.
+find_live_medium() {
+    local dev mnt
+    mnt=/run/mydistro/medium
+    mkdir -p "$mnt"
+    # Try optical first, then common disk names
+    for dev in /dev/sr0 /dev/sr1 \
+               /dev/sda /dev/sdb /dev/sdc /dev/sdd /dev/sde \
+               /dev/vda /dev/vdb \
+               /dev/nvme0n1 /dev/nvme1n1; do
+        [ -b "$dev" ] || continue
+        mount -o ro "$dev" "$mnt" 2>/dev/null || continue
+        if [ -f "$mnt/$SQUASHFS_RELPATH" ]; then
+            LIVE_MOUNT="$mnt"
+            echo "$dev"
+            return 0
+        fi
+        umount "$mnt" 2>/dev/null
+    done
+    return 1
+}
+
+mountroot() {
+    local medium squashfs
+
+    log_begin_msg "Searching for live medium"
+    medium=$(find_live_medium) \
+        || panic "No device found containing $SQUASHFS_RELPATH"
+    squashfs="$LIVE_MOUNT/$SQUASHFS_RELPATH"
+    log_end_msg 0
+
+    log_begin_msg "Mounting squashfs ($medium)"
+    mkdir -p /run/mydistro/rootfs
+    mount -t squashfs -o ro "$squashfs" /run/mydistro/rootfs \
+        || panic "squashfs mount failed"
+    log_end_msg 0
+
+    log_begin_msg "Setting up overlayfs"
+    mkdir -p /run/mydistro/upper /run/mydistro/work
+    mount -t overlay overlay \
+        -o lowerdir=/run/mydistro/rootfs,upperdir=/run/mydistro/upper,workdir=/run/mydistro/work \
+        "${rootmnt}" \
+        || panic "overlay mount failed"
+    log_end_msg 0
+
+    # Record the live medium device under /live/ (outside /run which systemd
+    # will shadow with a tmpfs). installer-run.sh reads this to skip the
+    # live device when picking an install target.
+    mkdir -p "${rootmnt}/live"
+    echo "$medium" > "${rootmnt}/live/medium-device"
+}
