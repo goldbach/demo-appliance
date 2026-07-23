@@ -29,17 +29,19 @@ clean:
 builder:
 	docker build --platform linux/amd64 -f Dockerfile.builder -t $(BUILDER_IMG) .
 
+DOCKER_RUN := docker run --rm --privileged --platform linux/amd64 \
+	--security-opt seccomp=unconfined \
+	-v "$(PWD)":/work
+
 docker-iso: builder
-	docker run --rm --privileged --platform linux/amd64 \
-		-v "$(PWD)":/work \
+	$(DOCKER_RUN) \
 		-e K3S_VERSION=$(K3S_VERSION) \
 		-e VERSION=$(VERSION) \
 		$(BUILDER_IMG) \
 		make iso
 
 docker-shell: builder
-	docker run --rm -it --privileged --platform linux/amd64 \
-		-v "$(PWD)":/work \
+	$(DOCKER_RUN) -it \
 		-e K3S_VERSION=$(K3S_VERSION) \
 		$(BUILDER_IMG) \
 		bash
