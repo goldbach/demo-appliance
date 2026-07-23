@@ -1,0 +1,17 @@
+[Unit]
+Description=First-boot node configuration
+After=local-fs.target network.target
+ConditionPathExists=/etc/mydistro/machine.conf
+# Removed by firstboot.sh after successful run
+ConditionPathExists=!/var/lib/mydistro/firstboot-done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/mydistro/firstboot.sh
+ExecStartPost=/bin/touch /var/lib/mydistro/firstboot-done
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

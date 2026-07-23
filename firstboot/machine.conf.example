@@ -1,0 +1,16 @@
+# Copy to /etc/mydistro/machine.conf before first boot.
+# The installer writes this file; edit before imaging the certified box.
+
+# Role of this node: server | agent
+ROLE=server
+
+# Set to true only on the first server node in a new cluster.
+# All subsequent nodes (servers and agents) set this to false.
+CLUSTER_INIT=true
+
+# URL of the first server node. Required when CLUSTER_INIT=false.
+# SERVER_URL=https://192.168.1.10:6443
+
+# Shared secret for nodes to join the cluster.
+# Generate with: openssl rand -hex 32
+CLUSTER_TOKEN=changeme
