@@ -24,5 +24,5 @@ e2fsck -f "$IMG" || true
 resize2fs -M "$IMG"  # shrink to minimum
 
 mv "$IMG" "$OUT"
-zstd --rm -T0 -9 "$OUT"      # produces $OUT.zst
+zstd --rm -f -T0 -9 "$OUT"   # produces $OUT.zst
 echo "Image: $OUT.zst"

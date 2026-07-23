@@ -3,11 +3,12 @@
 # GRUB shim (Secure Boot compatible). Requires xorriso and the ubuntu-grub
 # signed binaries to be present on the build host.
 #
-# Usage: make-iso.sh <rootfs.raw.zst> <output.iso>
+# Usage: make-iso.sh <rootfs.raw.zst> <rootfs.tar> <output.iso>
 set -euo pipefail
 
-ROOTFS="${1:?missing rootfs image}"
-OUT="${2:?missing output iso path}"
+ROOTFS="${1:?missing rootfs raw image}"
+ROOTFS_TAR="${2:?missing rootfs tar}"
+OUT="${3:?missing output iso path}"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -15,10 +16,12 @@ trap 'rm -rf "$WORK"' EXIT
 ISO_ROOT="$WORK/iso"
 mkdir -p "$ISO_ROOT"/{boot/grub,EFI/BOOT,installer}
 
-# --- Bootloader (Ubuntu signed binaries) ---
-# These must be present on the build host (install grub-efi-amd64-signed)
-cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$ISO_ROOT/EFI/BOOT/grubx64.efi"
-cp /usr/lib/shim/shimx64.efi.signed                    "$ISO_ROOT/EFI/BOOT/BOOTx64.efi"
+# --- Bootloader — extract signed EFI binaries from the rootfs tar ---
+tar -xf "$ROOTFS_TAR" -C "$WORK" \
+    "./usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed" \
+    "./usr/lib/shim/shimx64.efi.signed.latest"
+cp "$WORK/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed" "$ISO_ROOT/EFI/BOOT/grubx64.efi"
+cp "$WORK/usr/lib/shim/shimx64.efi.signed.latest"             "$ISO_ROOT/EFI/BOOT/BOOTx64.efi"
 
 # --- GRUB config ---
 cat > "$ISO_ROOT/boot/grub/grub.cfg" <<'EOF'
@@ -37,7 +40,7 @@ cp /boot/vmlinuz   "$ISO_ROOT/boot/vmlinuz"
 cp /boot/initrd.img "$ISO_ROOT/boot/initrd.img"
 
 # --- Installer payload ---
-cp "$ROOTFS" "$ISO_ROOT/installer/rootfs.raw.zst"
+cp "$ROOTFS" "$ISO_ROOT/installer/rootfs.raw.zst"   # already compressed by make-image.sh
 install -m 0755 installer/install.sh "$ISO_ROOT/installer/install.sh"
 install -m 0600 firstboot/machine.conf.example "$ISO_ROOT/installer/machine.conf"
 

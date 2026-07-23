@@ -15,6 +15,11 @@ mkdir -p "$VENDOR/bin" "$VENDOR/images"
 
 log() { echo "[fetch-k3s] $*"; }
 
+if [[ -f "$VENDOR/bin/k3s" && -f "$VENDOR/images/k3s-airgap-images-$ARCH.tar.zst" ]]; then
+    log "Already fetched $K3S_VERSION, skipping. Delete $VENDOR to force re-fetch."
+    exit 0
+fi
+
 log "Version: $K3S_VERSION"
 
 # Download everything flat into $VENDOR so sha256sum can find files by name

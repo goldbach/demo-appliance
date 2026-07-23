@@ -13,13 +13,13 @@ fetch:
 	./scripts/fetch-k3s.sh
 
 rootfs: fetch
-	mkosi --directory os --output-dir ../$(BUILD) build
+	sudo mkosi --directory os --output-dir ../$(BUILD) build
 
 image: rootfs
 	./scripts/make-image.sh $(BUILD)/mydistro-rootfs.tar $(BUILD)/rootfs-$(VERSION).raw
 
 iso: image
-	./scripts/make-iso.sh $(BUILD)/rootfs-$(VERSION).raw $(BUILD)/mydistro-$(VERSION).iso
+	./scripts/make-iso.sh $(BUILD)/rootfs-$(VERSION).raw.zst $(BUILD)/mydistro-rootfs.tar $(BUILD)/mydistro-$(VERSION).iso
 
 clean:
 	rm -rf $(BUILD)

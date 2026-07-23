@@ -10,10 +10,12 @@ apt-get install -y --no-install-recommends \
     parted \
     xorriso \
     isolinux \
-    grub-efi-amd64-signed \
-    shim-signed \
     zstd \
     curl \
     ca-certificates \
     make
 rm -rf /var/lib/apt/lists/*
+
+# mkosi cache directory — writable by all so non-root builds work
+mkdir -p /var/cache/mkosi
+chmod 777 /var/cache/mkosi

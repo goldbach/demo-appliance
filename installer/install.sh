@@ -4,7 +4,7 @@
 set -euo pipefail
 
 DISK="${1:?usage: install.sh <disk> e.g. /dev/sda}"
-ROOTFS_IMAGE="/run/installer/rootfs.raw"
+ROOTFS_IMAGE="/run/installer/rootfs.raw.zst"
 MACHINE_CONF="/run/installer/machine.conf"
 
 # Sizes in MiB
@@ -32,11 +32,11 @@ mkfs.ext4 -L   rootfs-b    "${DISK}3"
 mkfs.ext4 -L   data        "${DISK}4"
 
 log "Writing rootfs to partition A..."
-mount "${DISK}2" /mnt
-dd if="$ROOTFS_IMAGE" of="${DISK}2" bs=4M status=progress conv=fsync
+zstd -d "$ROOTFS_IMAGE" --stdout | dd of="${DISK}2" bs=4M status=progress conv=fsync
 resize2fs "${DISK}2"
 
 log "Mounting for bootloader install..."
+mount "${DISK}2" /mnt
 mount "${DISK}1" /mnt/boot/efi
 mount --bind /dev  /mnt/dev
 mount --bind /proc /mnt/proc
