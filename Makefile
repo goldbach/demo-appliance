@@ -12,7 +12,9 @@ fetch:
 	./scripts/fetch-k3s.sh
 
 rootfs: fetch
-	sudo mmdebstrap \
+	mmdebstrap \
+		--mode=unshare \
+		--skip=check/qemu \
 		--variant=minbase \
 		--architectures=amd64 \
 		--format=tar \
@@ -28,9 +30,9 @@ rootfs: fetch
 		--dpkgopt='path-exclude=/usr/share/locale/*' \
 		--dpkgopt='path-include=/usr/share/locale/locale.alias' \
 		--dpkgopt='path-exclude=/usr/share/doc/*' \
-		--customize-hook='chroot "$1" systemctl preset-all' \
-		noble $(BUILD)/mydistro-rootfs.tar \
-		"deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse"
+		--customize-hook='chroot "$$1" systemctl preset-all' \
+		resolute $(BUILD)/mydistro-rootfs.tar \
+		"deb http://archive.ubuntu.com/ubuntu/ resolute main restricted universe multiverse"
 
 image: rootfs
 	./scripts/make-image.sh $(BUILD)/mydistro-rootfs.tar $(BUILD)/rootfs-$(VERSION).raw
@@ -48,6 +50,9 @@ LIMA_NAME := builder
 
 lima-iso: | lima-start
 	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
+
+lima-rootfs: | lima-start
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make rootfs K3S_VERSION=$(K3S_VERSION)
 
 lima-shell: | lima-start
 	$(LIMA) shell --workdir /work $(LIMA_NAME)
