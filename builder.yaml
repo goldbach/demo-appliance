@@ -1,0 +1,30 @@
+vmType: vz
+vmOpts:
+  vz:
+    rosetta:
+      enabled: true
+      binfmt: true
+
+images:
+  - location: https://cloud-images.ubuntu.com/releases/resolute/release/ubuntu-26.04-server-cloudimg-arm64.img
+    arch: aarch64
+
+cpus: 4
+memory: "8GiB"
+disk: "40GiB"
+
+mounts:
+  - location: /Users/jakob/Projects/MyDistro
+    mountPoint: /work
+    writable: true
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      apt-get update
+      apt-get install -y --no-install-recommends \
+        debootstrap mmdebstrap systemd-container xorriso isolinux \
+        squashfs-tools zstd curl ca-certificates make dpkg-dev \
+        parted dosfstools e2fsprogs

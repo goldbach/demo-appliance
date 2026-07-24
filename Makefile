@@ -1,19 +1,36 @@
 VERSION     ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
 K3S_VERSION ?= v1.36.2+k3s1
 BUILD       := build
-BUILDER_IMG := mydistro-builder
 
 export K3S_VERSION
 
-.PHONY: fetch rootfs image iso clean builder docker-iso docker-shell
+.PHONY: fetch rootfs image iso clean lima-iso lima-shell lima-start
 
-# --- Native Linux targets (run inside the build container) ---
+# --- Native Linux targets (run inside the Lima VM) ---
 
 fetch:
 	./scripts/fetch-k3s.sh
 
 rootfs: fetch
-	sudo mkosi --directory os --output-dir ../$(BUILD) build
+	sudo mmdebstrap \
+		--variant=minbase \
+		--architectures=amd64 \
+		--format=tar \
+		--include="systemd systemd-resolved systemd-sysv systemd-timesyncd udev dbus \
+			ca-certificates apt-transport-https \
+			openssh-server \
+			iproute2 iputils-ping iptables nftables bridge-utils ethtool dnsutils tcpdump socat netcat-openbsd \
+			conntrack kmod nfs-common open-iscsi \
+			containerd \
+			grub-efi-amd64-signed shim-signed \
+			curl wget vim less jq htop lsof strace bash-completion psmisc procps util-linux zstd" \
+		--dpkgopt='path-exclude=/usr/share/man/*' \
+		--dpkgopt='path-exclude=/usr/share/locale/*' \
+		--dpkgopt='path-include=/usr/share/locale/locale.alias' \
+		--dpkgopt='path-exclude=/usr/share/doc/*' \
+		--customize-hook='chroot "$1" systemctl preset-all' \
+		noble $(BUILD)/mydistro-rootfs.tar \
+		"deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse"
 
 image: rootfs
 	./scripts/make-image.sh $(BUILD)/mydistro-rootfs.tar $(BUILD)/rootfs-$(VERSION).raw
@@ -24,24 +41,16 @@ iso: image
 clean:
 	rm -rf $(BUILD)
 
-# --- Docker targets (use these on macOS) ---
+# --- Lima targets (ARM64 VM with Rosetta for amd64) ---
 
-builder:
-	docker build --platform linux/amd64 -f Dockerfile.builder -t $(BUILDER_IMG) .
+LIMA := limactl
+LIMA_NAME := builder
 
-DOCKER_RUN := docker run --rm --privileged --platform linux/amd64 \
-	--security-opt seccomp=unconfined \
-	-v "$(PWD)":/work
+lima-iso: | lima-start
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
 
-docker-iso: builder
-	$(DOCKER_RUN) \
-		-e K3S_VERSION=$(K3S_VERSION) \
-		-e VERSION=$(VERSION) \
-		$(BUILDER_IMG) \
-		make iso
+lima-shell: | lima-start
+	$(LIMA) shell --workdir /work $(LIMA_NAME)
 
-docker-shell: builder
-	$(DOCKER_RUN) -it \
-		-e K3S_VERSION=$(K3S_VERSION) \
-		$(BUILDER_IMG) \
-		bash
+lima-start:
+	$(LIMA) start builder --tty=false 2>/dev/null || $(LIMA) start builder.yaml --tty=false 2>/dev/null || true

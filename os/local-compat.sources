@@ -1,5 +1,0 @@
-Types: deb
-URIs: file:///var/lib/mydistro-compat
-Suites: ./
-Components:
-Trusted: yes

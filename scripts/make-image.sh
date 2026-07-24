@@ -1,5 +1,5 @@
 #!/bin/bash
-# Converts a mkosi rootfs tar into a raw ext4 partition image.
+# Converts a rootfs tar into a raw ext4 partition image.
 # Usage: make-image.sh <rootfs.tar> <output.raw>
 set -euo pipefail
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Downloads the k3s binary and air-gap image tarball for a pinned version.
-# Run this before `make rootfs`. Output lands in vendor/k3s/ which mkosi
-# picks up via ExtraTrees, and the ISO build picks up images separately.
+# Run this before `make rootfs`. Output lands in vendor/k3s/ which the rootfs
+# build copies into the chroot, and the ISO build picks up images separately.
 #
 # Usage: K3S_VERSION=v1.30.2+k3s1 ./scripts/fetch-k3s.sh
 set -euo pipefail
@@ -37,7 +37,7 @@ curl -fsSL "$BASE_URL/k3s-airgap-images-$ARCH.tar.zst" \
 log "Verifying checksums..."
 (cd "$VENDOR" && sha256sum --check --ignore-missing "sha256sum-$ARCH.txt")
 
-# Organise into subdirs for mkosi ExtraTrees and ISO build
+# Organise into subdirs for rootfs copy and ISO build
 chmod +x "$VENDOR/k3s"
 mv "$VENDOR/k3s"                                  "$VENDOR/bin/k3s"
 mv "$VENDOR/k3s-airgap-images-$ARCH.tar.zst"     "$VENDOR/images/"
