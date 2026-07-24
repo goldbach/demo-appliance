@@ -4,41 +4,34 @@ BUILD       := build
 
 export K3S_VERSION
 
-.PHONY: fetch rootfs image iso clean lima-iso lima-shell lima-start
+# --- File targets (make skips when output exists and is newer than deps) ---
 
-# --- Native Linux targets (run inside the Lima VM) ---
+ROOTFS_TAR  := $(BUILD)/mydistro-rootfs.tar
+ROOTFS_RAW  := $(BUILD)/rootfs-$(VERSION).raw
+ROOTFS_ZST  := $(ROOTFS_RAW).zst
+ISO         := $(BUILD)/mydistro-$(VERSION).iso
 
-fetch:
-	./scripts/fetch-k3s.sh
+.PHONY: all rootfs image iso iso-info clean lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start
 
-rootfs: fetch
-	mmdebstrap \
-		--mode=unshare \
-		--skip=check/qemu \
-		--variant=minbase \
-		--architectures=amd64 \
-		--format=tar \
-		--include="systemd systemd-resolved systemd-sysv systemd-timesyncd udev dbus \
-			ca-certificates apt-transport-https \
-			openssh-server \
-			iproute2 iputils-ping iptables nftables bridge-utils ethtool dnsutils tcpdump socat netcat-openbsd \
-			conntrack kmod nfs-common open-iscsi \
-			containerd \
-			grub-efi-amd64-signed shim-signed \
-			curl wget vim less jq htop lsof strace bash-completion psmisc procps util-linux zstd" \
-		--dpkgopt='path-exclude=/usr/share/man/*' \
-		--dpkgopt='path-exclude=/usr/share/locale/*' \
-		--dpkgopt='path-include=/usr/share/locale/locale.alias' \
-		--dpkgopt='path-exclude=/usr/share/doc/*' \
-		--customize-hook='chroot "$$1" systemctl preset-all' \
-		resolute $(BUILD)/mydistro-rootfs.tar \
-		"deb http://archive.ubuntu.com/ubuntu/ resolute main restricted universe multiverse"
+all: iso
 
-image: rootfs
-	./scripts/make-image.sh $(BUILD)/mydistro-rootfs.tar $(BUILD)/rootfs-$(VERSION).raw
+$(ROOTFS_TAR): scripts/build-rootfs.sh
+	./scripts/build-rootfs.sh
 
-iso: image
-	./scripts/make-iso.sh $(BUILD)/rootfs-$(VERSION).raw.zst $(BUILD)/mydistro-rootfs.tar $(BUILD)/mydistro-$(VERSION).iso
+$(ROOTFS_ZST): $(ROOTFS_TAR)
+	./scripts/make-image.sh $< $(ROOTFS_RAW)
+
+$(ISO): $(ROOTFS_ZST) $(ROOTFS_TAR)
+	./scripts/make-iso.sh $< $(ROOTFS_TAR) $@
+
+# Convenience aliases (for manual runs)
+
+rootfs: $(ROOTFS_TAR)
+image: $(ROOTFS_ZST)
+iso: $(ISO)
+
+iso-info: $(ISO)
+	xorriso -indev "$<" -find / 2>/dev/null
 
 clean:
 	rm -rf $(BUILD)
@@ -51,11 +44,17 @@ LIMA_NAME := builder
 lima-iso: | lima-start
 	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
 
+lima-image: | lima-start
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make image K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
+
 lima-rootfs: | lima-start
 	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make rootfs K3S_VERSION=$(K3S_VERSION)
 
 lima-shell: | lima-start
 	$(LIMA) shell --workdir /work $(LIMA_NAME)
+
+lima-iso-info: | lima-start
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso-info K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
 
 lima-start:
 	$(LIMA) start builder --tty=false 2>/dev/null || $(LIMA) start builder.yaml --tty=false 2>/dev/null || true
