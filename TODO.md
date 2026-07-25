@@ -33,3 +33,27 @@ Cost / scope if implemented:
 
 Scope as its own change; touches Makefile, both build scripts, make-iso.sh,
 install.sh, installer-run.sh.
+
+### Follow-on: mmdebstrap --format=squashfs
+
+Once the live/target split above exists, each of the two `mmdebstrap` runs
+could stream straight to squashfs instead of tar, dropping `make-iso.sh`'s
+separate `mksquashfs` pass entirely.
+
+- `mmdebstrap 1.5.7` (confirmed in the `builder` VM) supports
+  `--format=squashfs` natively, but via `tar2sqfs` (needs `squashfs-tools-ng`,
+  not the `squashfs-tools` we have) rather than `mksquashfs`. Its default is
+  `--compressor xz --block-size 1048576`, not the `zstd -Xcompression-level 9`
+  used today, and there's no `--format-options` flag to change it — keeping
+  zstd means bypassing the shortcut with a manual
+  `mmdebstrap | mmtarfilter | tar2sqfs --compressor zstd` pipe instead.
+- Not worth it under the *current* single-tar architecture: the tar is still
+  needed to patch `/etc/hostname` before squashing (squashfs isn't editable
+  in place, so unsquash→edit→resquash is unavoidable either way) and to pull
+  standalone kernel/initrd/grub/shim files (`tar -tf`/`tar -xf` would become
+  `unsquashfs -f -d dest image path...` — doable, but a rewrite, not a
+  deletion).
+- Pairs naturally with the split: the live-env build can bake its
+  `live-boot` hostname in via its own `customize-hook` (no post-hoc patch
+  needed) and stream directly to `live/filesystem.squashfs`; same for the
+  target payload with `mydistro` hostname.
