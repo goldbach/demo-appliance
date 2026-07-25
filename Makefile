@@ -11,7 +11,7 @@ ROOTFS_RAW  := $(BUILD)/rootfs.raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
 ISO         := $(BUILD)/mydistro.iso
 
-.PHONY: all rootfs image iso iso-info clean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test
+.PHONY: all rootfs image iso iso-info clean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test lima-test-secure
 
 all: iso
 
@@ -74,6 +74,22 @@ lima-test: lima-iso | lima-start
 			-drive file=build/test-disk.raw,format=raw,if=virtio \
 			-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
 			-drive if=pflash,format=raw,file=build/OVMF_VARS.fd'
+
+# Same as lima-test, but with Secure Boot enabled (secboot firmware +
+# Microsoft keys pre-enrolled in the VARS). Verify with `bootctl status`.
+lima-test-secure: lima-iso | lima-start
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- bash -c '\
+		sudo apt-get install -y -qq qemu-system-x86 ovmf 2>/dev/null && \
+		rm -f build/test-disk.raw && truncate -s 20G build/test-disk.raw && \
+		cp -f /usr/share/OVMF/OVMF_VARS_4M.ms.fd build/OVMF_VARS.secure.fd && \
+		qemu-system-x86_64 -machine q35,smm=on -m 4096 -nographic \
+			-global driver=cfi.pflash01,property=secure,value=on \
+			-serial mon:stdio \
+			-boot d \
+			-drive file=build/mydistro.iso,media=cdrom,if=ide \
+			-drive file=build/test-disk.raw,format=raw,if=virtio \
+			-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+			-drive if=pflash,format=raw,file=build/OVMF_VARS.secure.fd'
 
 lima-start:
 	$(LIMA) start builder --tty=false 2>/dev/null || $(LIMA) start builder.yaml --tty=false 2>/dev/null || true
