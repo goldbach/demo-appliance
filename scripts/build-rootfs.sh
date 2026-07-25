@@ -24,8 +24,8 @@ PACKAGES=(
     ethtool dnsutils tcpdump socat netcat-openbsd
     # k3s deps
     conntrack kmod nfs-common open-iscsi
-    # squashfs-tools: install.sh extracts filesystem.squashfs in the live env
-    squashfs-tools
+    # installer (runs in the live env): partition, format, boot entry, extract
+    parted dosfstools e2fsprogs efibootmgr squashfs-tools
     # container runtime (k3s bundles its own, but needed for image prep)
     containerd
     # bootloader (Secure Boot)
@@ -53,6 +53,8 @@ mmdebstrap \
     --dpkgopt='path-include=/usr/share/locale/locale.alias' \
     --dpkgopt='path-exclude=/usr/share/doc/*' \
     --customize-hook='mkdir -p "$1/usr/local/bin"' \
+    --customize-hook='mkdir -p "$1/data"' \
+    --customize-hook='mkdir -p "$1/etc/systemd/network" && printf "[Match]\nName=en* eth*\n\n[Network]\nDHCP=yes\n" > "$1/etc/systemd/network/20-wired.network"' \
     --customize-hook='echo mydistro > "$1/etc/hostname"' \
     --customize-hook='mkdir -p "$1/usr/lib/mydistro"' \
     --customize-hook='mkdir -p "$1/etc/systemd/system"' \

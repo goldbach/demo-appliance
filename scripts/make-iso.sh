@@ -36,11 +36,11 @@ TIMEOUT 100
 
 LABEL install
     KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img boot=live quiet console=tty0 console=ttyS0,115200
-
-LABEL verbose
-    KERNEL /boot/vmlinuz
     APPEND initrd=/boot/initrd.img boot=live console=tty0 console=ttyS0,115200
+
+LABEL auto
+    KERNEL /boot/vmlinuz
+    APPEND initrd=/boot/initrd.img boot=live mydistro.install=auto console=tty0 console=ttyS0,115200
 EOF
 
 # --- Kernel + initrd (with live-boot hooks baked in by update-initramfs) ---
@@ -97,12 +97,12 @@ set default=0
 search --file --set=root /live/filesystem.squashfs
 
 menuentry "Install MyDistro" {
-    linux  /boot/vmlinuz boot=live quiet console=tty0 console=ttyS0,115200
+    linux  /boot/vmlinuz boot=live console=tty0 console=ttyS0,115200
     initrd /boot/initrd.img
 }
 
-menuentry "Install MyDistro (verbose)" {
-    linux  /boot/vmlinuz boot=live console=tty0 console=ttyS0,115200
+menuentry "Install MyDistro (automatic, NO confirmation)" {
+    linux  /boot/vmlinuz boot=live mydistro.install=auto console=tty0 console=ttyS0,115200
     initrd /boot/initrd.img
 }
 EOF

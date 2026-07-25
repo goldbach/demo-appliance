@@ -40,6 +40,10 @@ SQUASHFS="$MEDIUM_MOUNT/live/filesystem.squashfs"
 MACHINE_CONF="$MEDIUM_MOUNT/installer/machine.conf"
 log "Medium: $MEDIUM_DEV"
 
+# Selected via the boot menu entry: skip all confirmation prompts
+AUTO=no
+grep -q "mydistro.install=auto" /proc/cmdline && AUTO=yes
+
 echo ""
 echo "======================================================"
 echo "  MyDistro Installer"
@@ -65,6 +69,9 @@ fi
 if [ ${#DISKS[@]} -eq 1 ]; then
     DISK="${DISKS[0]}"
     log "Target disk: $DISK (auto-detected)"
+elif [ "$AUTO" = yes ]; then
+    # never guess which disk to wipe
+    die "mydistro.install=auto needs exactly one candidate disk, found ${#DISKS[@]}"
 else
     echo "Available disks:"
     for i in "${!DISKS[@]}"; do
@@ -85,8 +92,12 @@ log "Rootfs image   : $SQUASHFS"
 echo ""
 echo "WARNING: ALL DATA ON $DISK WILL BE ERASED."
 echo ""
-read -r -p "Type 'yes' to continue: " confirm
-[ "$confirm" = "yes" ] || { echo "Aborted."; exit 1; }
+if [ "$AUTO" = yes ]; then
+    log "mydistro.install=auto — proceeding without confirmation"
+else
+    read -r -p "Type 'yes' to continue: " confirm
+    [ "$confirm" = "yes" ] || { echo "Aborted."; exit 1; }
+fi
 echo ""
 
 export SQUASHFS_IMAGE="$SQUASHFS"

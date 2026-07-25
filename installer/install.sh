@@ -75,13 +75,27 @@ chroot /mnt grub-install \
     --bootloader-id=mydistro
 chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 
+log "Removing live-environment leftovers..."
+# live-boot only serves the installer medium; purging it also regenerates
+# the initrd without live hooks. The installer scripts go too — installed
+# nodes should not carry a disk-wiping entry point. Disk tools (parted,
+# efibootmgr, ...) stay: useful for node maintenance and sysupdate.
+chroot /mnt apt-get purge -y live-boot live-boot-initramfs-tools
+rm -f /mnt/etc/systemd/system/installer.service \
+      /mnt/etc/systemd/system/multi-user.target.wants/installer.service \
+      /mnt/usr/lib/mydistro/installer-run.sh \
+      /mnt/usr/lib/mydistro/install.sh
+
 log "Writing /etc/fstab..."
+# root stays rw for now: firstboot, ssh host keys, timesync etc. need writable
+# /etc//var. ro root comes back with the A/B work, together with the
+# writable-path plumbing (/data-backed overlays) it requires.
 EFI_UUID=$(blkid -s UUID -o value "$EFI_PART")
 ROOT_UUID=$(blkid -s UUID -o value "$ROOTFS_A")
 DATA_UUID=$(blkid -s UUID -o value "$DATA_PART")
 cat > /mnt/etc/fstab <<EOF
 UUID=$EFI_UUID   /boot/efi  vfat  umask=0077                    0 1
-UUID=$ROOT_UUID  /          ext4  defaults,ro                    0 1
+UUID=$ROOT_UUID  /          ext4  defaults                       0 1
 UUID=$DATA_UUID  /data      ext4  defaults,x-systemd.makefs      0 2
 EOF
 
