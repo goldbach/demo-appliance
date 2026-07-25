@@ -19,7 +19,16 @@ sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER
 **macOS (ARM64 via Lima):**
 
 ```bash
-brew install limactl
+brew install limactl make
+```
+
+The Makefile uses a GNU Make 4.3+ feature (grouped targets, `&:`), which macOS's
+built-in `/usr/bin/make` (3.81) can't parse — even for `lima-*` targets, since make
+must parse the whole file before running anything. Put Homebrew's `make` ahead of
+the system one on `PATH`:
+
+```bash
+export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
 ```
 
 The Lima VM (`builder.yaml`) runs Ubuntu 26.04 on Apple Virtualization with Rosetta for amd64 translation. Dependencies are provisioned automatically.

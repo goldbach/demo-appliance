@@ -1,5 +1,5 @@
 VERSION     ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
-K3S_VERSION ?= v1.36.2+k3s1
+K3S_VERSION := v1.36.2+k3s1
 BUILD       := build
 
 export K3S_VERSION
@@ -10,22 +10,29 @@ ROOTFS_TAR  := $(BUILD)/mydistro-rootfs.tar
 ROOTFS_RAW  := $(BUILD)/rootfs.raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
 ISO         := $(BUILD)/mydistro.iso
+K3S_BIN     := vendor/k3s/bin/k3s
+K3S_IMAGES  := vendor/k3s/images/k3s-airgap-images-amd64.tar.zst
 
-.PHONY: all rootfs image iso iso-info clean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test lima-test-secure
+.PHONY: all fetch rootfs image iso iso-info clean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test lima-test-secure
 
 all: iso
 
-$(ROOTFS_TAR): scripts/build-rootfs.sh
+# fetch-k3s.sh already no-ops if both outputs exist; re-run by deleting vendor/k3s.
+$(K3S_BIN) $(K3S_IMAGES) &: scripts/fetch-k3s.sh
+	./scripts/fetch-k3s.sh
+
+$(ROOTFS_TAR): $(K3S_BIN) scripts/build-rootfs.sh
 	./scripts/build-rootfs.sh
 
 $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh
 	./scripts/make-image.sh $< $(ROOTFS_RAW)
 
-$(ISO): $(ROOTFS_TAR) ./scripts/make-iso.sh
+$(ISO): $(ROOTFS_TAR) $(K3S_IMAGES) ./scripts/make-iso.sh
 	./scripts/make-iso.sh $(ROOTFS_TAR) $@
 
 # Convenience aliases (for manual runs)
 
+fetch: $(K3S_BIN) $(K3S_IMAGES)
 rootfs: $(ROOTFS_TAR)
 image: $(ROOTFS_ZST)
 iso: $(ISO)
@@ -48,19 +55,19 @@ LIMA := limactl
 LIMA_NAME := builder
 
 lima-iso: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso VERSION=$(VERSION)
 
 lima-image: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make image K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make image VERSION=$(VERSION)
 
 lima-rootfs: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make rootfs K3S_VERSION=$(K3S_VERSION)
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make rootfs
 
 lima-shell: | lima-start
 	$(LIMA) shell --workdir /work $(LIMA_NAME)
 
 lima-iso-info: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso-info K3S_VERSION=$(K3S_VERSION) VERSION=$(VERSION)
+	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso-info VERSION=$(VERSION)
 
 lima-test: lima-iso | lima-start
 	$(LIMA) shell --workdir /work $(LIMA_NAME) -- bash -c '\
