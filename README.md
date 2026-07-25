@@ -9,7 +9,8 @@ Minimal Ubuntu 26.04 (resolute) amd64 appliance with [k3s](https://k3s.io/).
 ```bash
 # build deps
 sudo apt install -y debootstrap mmdebstrap systemd-container xorriso isolinux \
-  squashfs-tools zstd curl ca-certificates make dpkg-dev parted dosfstools e2fsprogs
+  syslinux-common squashfs-tools zstd curl ca-certificates make dpkg-dev \
+  parted dosfstools mtools e2fsprogs
 
 # unprivileged chroot (needed for mmdebstrap --mode=unshare)
 sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER

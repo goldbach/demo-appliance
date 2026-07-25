@@ -7,6 +7,7 @@ apt-get install -y --no-install-recommends \
     systemd-container \
     xorriso \
     isolinux \
+    syslinux-common \
     squashfs-tools \
     zstd \
     curl \
@@ -15,5 +16,6 @@ apt-get install -y --no-install-recommends \
     dpkg-dev \
     parted \
     dosfstools \
+    mtools \
     e2fsprogs
 rm -rf /var/lib/apt/lists/*

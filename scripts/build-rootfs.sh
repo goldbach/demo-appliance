@@ -12,7 +12,7 @@ MIRROR="deb http://archive.ubuntu.com/ubuntu/ $SUITES main restricted universe m
 
 PACKAGES=(
     # kernel / boot
-    linux-image-generic initramfs-tools
+    linux-image-generic initramfs-tools live-boot live-boot-initramfs-tools
     # init / system
     systemd systemd-resolved systemd-sysv systemd-timesyncd udev dbus
     # certs / transport
