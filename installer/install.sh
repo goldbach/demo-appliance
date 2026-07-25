@@ -1,10 +1,10 @@
 #!/bin/bash
 # Partitions the target disk, writes the rootfs, installs the bootloader.
-# Called by installer-run.sh with ROOTFS_IMAGE and MACHINE_CONF set.
+# Called by installer-run.sh with SQUASHFS_IMAGE and MACHINE_CONF set.
 set -euo pipefail
 
 DISK="${1:?usage: install.sh <disk>}"
-ROOTFS_IMAGE="${ROOTFS_IMAGE:?ROOTFS_IMAGE not set}"
+SQUASHFS_IMAGE="${SQUASHFS_IMAGE:?SQUASHFS_IMAGE not set}"
 MACHINE_CONF="${MACHINE_CONF:?MACHINE_CONF not set}"
 
 # Sizes in MiB
@@ -48,12 +48,16 @@ mkfs.ext4 -L   rootfs-a    "$ROOTFS_A"
 mkfs.ext4 -L   rootfs-b    "$ROOTFS_B"
 mkfs.ext4 -L   data        "$DATA_PART"
 
-log "Writing rootfs to partition A (this takes a few minutes)..."
-zstd -d "$ROOTFS_IMAGE" --stdout | dd of="$ROOTFS_A" bs=4M status=progress conv=fsync
-resize2fs "$ROOTFS_A"
-
-log "Mounting for bootloader install..."
+log "Mounting target rootfs..."
 mount "$ROOTFS_A" /mnt
+
+log "Extracting rootfs from squashfs (this takes a few minutes)..."
+unsquashfs -f -d /mnt "$SQUASHFS_IMAGE"
+
+# The squashfs carries the live environment's hostname; the installed
+# system gets the distro default back.
+echo mydistro > /mnt/etc/hostname
+
 mkdir -p /mnt/boot/efi
 mount "$EFI_PART" /mnt/boot/efi
 mount --bind /dev  /mnt/dev
@@ -62,11 +66,13 @@ mount --bind /sys  /mnt/sys
 mount --bind /sys/firmware/efi/efivars /mnt/sys/firmware/efi/efivars 2>/dev/null || true
 
 log "Installing GRUB (Secure Boot signed)..."
+# No --no-nvram: grub-install registers a "mydistro" EFI boot entry and puts
+# it first in BootOrder, so the box boots from disk after install even with
+# the installer medium still attached (firmware prefers removable media).
 chroot /mnt grub-install \
     --target=x86_64-efi \
     --efi-directory=/boot/efi \
-    --bootloader-id=mydistro \
-    --no-nvram
+    --bootloader-id=mydistro
 chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 
 log "Writing /etc/fstab..."
@@ -90,8 +96,8 @@ log "Copying k3s air-gap images to data partition..."
 mount "$DATA_PART" /mnt/data 2>/dev/null || true
 if [ -d /mnt/data ]; then
     mkdir -p /mnt/data/k3s-images
-    if [ -d "$(dirname "$ROOTFS_IMAGE")/../k3s-images" ]; then
-        cp -v "$(dirname "$ROOTFS_IMAGE")"/../k3s-images/*.tar.zst /mnt/data/k3s-images/ || true
+    if [ -d "$(dirname "$SQUASHFS_IMAGE")/../k3s-images" ]; then
+        cp -v "$(dirname "$SQUASHFS_IMAGE")"/../k3s-images/*.tar.zst /mnt/data/k3s-images/ || true
     fi
     umount /mnt/data
 fi

@@ -24,6 +24,8 @@ PACKAGES=(
     ethtool dnsutils tcpdump socat netcat-openbsd
     # k3s deps
     conntrack kmod nfs-common open-iscsi
+    # squashfs-tools: install.sh extracts filesystem.squashfs in the live env
+    squashfs-tools
     # container runtime (k3s bundles its own, but needed for image prep)
     containerd
     # bootloader (Secure Boot)
@@ -51,12 +53,18 @@ mmdebstrap \
     --dpkgopt='path-include=/usr/share/locale/locale.alias' \
     --dpkgopt='path-exclude=/usr/share/doc/*' \
     --customize-hook='mkdir -p "$1/usr/local/bin"' \
+    --customize-hook='echo mydistro > "$1/etc/hostname"' \
     --customize-hook='mkdir -p "$1/usr/lib/mydistro"' \
     --customize-hook='mkdir -p "$1/etc/systemd/system"' \
     --customize-hook='copy-in vendor/k3s/bin/k3s /usr/local/bin/' \
-    --customize-hook='copy-in firstboot /usr/lib/mydistro/' \
-    --customize-hook='copy-in installer /usr/lib/mydistro/' \
-    --customize-hook='copy-in units /etc/systemd/system/' \
+    --customize-hook='copy-in installer/installer-run.sh /usr/lib/mydistro/' \
+    --customize-hook='copy-in installer/install.sh /usr/lib/mydistro/' \
+    --customize-hook='copy-in firstboot/firstboot.sh /usr/lib/mydistro/' \
+    --customize-hook='copy-in units/installer.service /etc/systemd/system/' \
+    --customize-hook='copy-in units/firstboot.service /etc/systemd/system/' \
+    --customize-hook='copy-in units/k3s-server.service /etc/systemd/system/' \
+    --customize-hook='copy-in units/k3s-agent.service /etc/systemd/system/' \
+    --customize-hook='printf "disable k3s-server.service\ndisable k3s-agent.service\n" > "$1/usr/lib/systemd/system-preset/99-mydistro.preset"' \
     --customize-hook='chroot "$1" update-initramfs -u' \
     --customize-hook='chroot "$1" systemctl preset-all' \
     "$SUITES" "$OUTPUT" "$MIRROR"

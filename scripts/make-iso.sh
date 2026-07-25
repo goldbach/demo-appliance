@@ -3,14 +3,14 @@
 #
 # The ISO boots the full Ubuntu rootfs as a live environment (overlayfs over
 # tmpfs). live-boot handles mounting. On boot, installer.service auto-launches
-# installer-run.sh which partitions the target disk and writes rootfs.raw.zst.
+# installer-run.sh which partitions the target disk and extracts the live
+# squashfs onto it — the squashfs doubles as the install payload.
 #
-# Usage: make-iso.sh <rootfs.raw.zst> <rootfs.tar> <output.iso>
+# Usage: make-iso.sh <rootfs.tar> <output.iso>
 set -euo pipefail
 
-ROOTFS_ZST="${1:?missing rootfs.raw.zst}"
-ROOTFS_TAR="${2:?missing rootfs.tar}"
-OUT="${3:?missing output iso path}"
+ROOTFS_TAR="${1:?missing rootfs.tar}"
+OUT="${2:?missing output iso path}"
 
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/make-iso.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
@@ -61,13 +61,16 @@ echo "Building squashfs (this takes a minute)..."
 SQUASH_ROOT="$WORK/squashfs-root"
 mkdir -p "$SQUASH_ROOT"
 tar -xf "$ROOTFS_TAR" -C "$SQUASH_ROOT" --exclude='./dev/*'
+# The squashfs is only ever the live/installer environment. rootfs.raw
+# (what install.sh writes to disk) keeps the rootfs hostname (mydistro).
+echo live-boot > "$SQUASH_ROOT/etc/hostname"
 mksquashfs "$SQUASH_ROOT" "$ISO_ROOT/live/filesystem.squashfs" \
     -comp zstd -Xcompression-level 9 -noappend -quiet
 printf '%s' "$(du -sx --block-size=1 "$SQUASH_ROOT" | cut -f1)" \
     > "$ISO_ROOT/live/filesystem.size"
 
-# --- Installer payload (rootfs image written to disk by install.sh) ---
-cp "$ROOTFS_ZST" "$ISO_ROOT/installer/rootfs.raw.zst"
+# --- Installer payload ---
+# No separate rootfs image: install.sh extracts live/filesystem.squashfs.
 install -m 0600 firstboot/machine.conf.example "$ISO_ROOT/installer/machine.conf"
 
 # --- k3s air-gap images (copied to /data by install.sh) ---

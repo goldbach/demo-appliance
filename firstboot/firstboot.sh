@@ -24,10 +24,10 @@ log "Node role: $ROLE"
 mkdir -p /etc/rancher/k3s /data/k3s-images
 
 # Import air-gap images if present on the data partition
-if compgen -G "$AIRGAP_DIR/*.tar" > /dev/null; then
+if compgen -G "$AIRGAP_DIR/*.tar.zst" > /dev/null; then
     log "Importing air-gap images..."
     mkdir -p /var/lib/rancher/k3s/agent/images
-    cp "$AIRGAP_DIR"/*.tar /var/lib/rancher/k3s/agent/images/
+    cp "$AIRGAP_DIR"/*.tar.zst /var/lib/rancher/k3s/agent/images/
 fi
 
 case "$ROLE" in

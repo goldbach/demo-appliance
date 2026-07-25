@@ -13,7 +13,7 @@ LIVE_DEV=""
 [ -f "$LIVE_DEV_FILE" ] && LIVE_DEV=$(cat "$LIVE_DEV_FILE")
 
 # Mount the installer medium (the device that holds live/filesystem.squashfs
-# and installer/rootfs.raw.zst).
+# — which doubles as the install payload — and installer/machine.conf).
 MEDIUM_MOUNT=/run/installer/medium
 mkdir -p "$MEDIUM_MOUNT"
 
@@ -25,7 +25,7 @@ find_installer_medium() {
                /dev/vda /dev/nvme0n1 /dev/nvme1n1; do
         [ -n "$dev" ] && [ -b "$dev" ] || continue
         mount -o ro "$dev" "$mnt" 2>/dev/null || continue
-        if [ -f "$mnt/installer/rootfs.raw.zst" ]; then
+        if [ -f "$mnt/live/filesystem.squashfs" ]; then
             echo "$dev"
             return 0
         fi
@@ -36,7 +36,7 @@ find_installer_medium() {
 
 log "Locating installer medium..."
 MEDIUM_DEV=$(find_installer_medium) || die "installer payload not found on any device"
-ROOTFS="$MEDIUM_MOUNT/installer/rootfs.raw.zst"
+SQUASHFS="$MEDIUM_MOUNT/live/filesystem.squashfs"
 MACHINE_CONF="$MEDIUM_MOUNT/installer/machine.conf"
 log "Medium: $MEDIUM_DEV"
 
@@ -81,7 +81,7 @@ fi
 
 echo ""
 log "Install target : $DISK"
-log "Rootfs image   : $ROOTFS"
+log "Rootfs image   : $SQUASHFS"
 echo ""
 echo "WARNING: ALL DATA ON $DISK WILL BE ERASED."
 echo ""
@@ -89,7 +89,7 @@ read -r -p "Type 'yes' to continue: " confirm
 [ "$confirm" = "yes" ] || { echo "Aborted."; exit 1; }
 echo ""
 
-export ROOTFS_IMAGE="$ROOTFS"
+export SQUASHFS_IMAGE="$SQUASHFS"
 export MACHINE_CONF="$MACHINE_CONF"
 
 exec /usr/lib/mydistro/install.sh "$DISK"

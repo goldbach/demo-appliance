@@ -11,7 +11,7 @@ ROOTFS_RAW  := $(BUILD)/rootfs.raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
 ISO         := $(BUILD)/mydistro.iso
 
-.PHONY: all rootfs image iso iso-info clean clean-iso lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test
+.PHONY: all rootfs image iso iso-info clean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test
 
 all: iso
 
@@ -21,8 +21,8 @@ $(ROOTFS_TAR): scripts/build-rootfs.sh
 $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh
 	./scripts/make-image.sh $< $(ROOTFS_RAW)
 
-$(ISO): $(ROOTFS_ZST) $(ROOTFS_TAR) ./scripts/make-iso.sh
-	./scripts/make-iso.sh $< $(ROOTFS_TAR) $@
+$(ISO): $(ROOTFS_TAR) ./scripts/make-iso.sh
+	./scripts/make-iso.sh $(ROOTFS_TAR) $@
 
 # Convenience aliases (for manual runs)
 
@@ -38,6 +38,9 @@ clean:
 
 clean-iso:
 	rm -f $(ISO)
+
+clean-rootfs:
+	rm -f $(ROOTFS_TAR)
 
 # --- Lima targets (ARM64 VM with Rosetta for amd64) ---
 
