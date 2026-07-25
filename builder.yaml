@@ -14,8 +14,15 @@ memory: "8GiB"
 disk: "40GiB"
 
 mounts:
-  - location: /Users/jakob/Projects/MyDistro
+  # {{.Dir}} = directory containing this yaml, i.e. the project root on
+  # whoever's machine runs it — keeps the config portable
+  - location: "{{.Dir}}"
     mountPoint: /work
+    writable: true
+  # same dir at its host path, so plain `limactl shell` doesn't complain
+  # about a missing cwd (limactl mirrors the host cwd into the guest)
+  - location: "{{.Dir}}"
+    mountPoint: "{{.Dir}}"
     writable: true
 
 provision:
