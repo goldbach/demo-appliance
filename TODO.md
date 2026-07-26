@@ -56,4 +56,4 @@ separate `mksquashfs` pass entirely.
 - Pairs naturally with the split: the live-env build can bake its
   `live-boot` hostname in via its own `customize-hook` (no post-hoc patch
   needed) and stream directly to `live/filesystem.squashfs`; same for the
-  target payload with `mydistro` hostname.
+  target payload with `appliance` hostname.

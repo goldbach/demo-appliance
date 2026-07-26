@@ -1,4 +1,4 @@
-# MyDistro
+# Appliance
 
 Minimal Ubuntu 26.04 (resolute) amd64 appliance with [k3s](https://k3s.io/).
 
@@ -54,9 +54,9 @@ make lima-shell   # drop into the VM
 | Step | Command | Output |
 |------|---------|--------|
 | `fetch` | Downloads k3s binary + airgap images | `vendor/k3s/` |
-| `rootfs` | `mmdebstrap` creates Ubuntu rootfs tarball | `build/mydistro-rootfs.tar` |
+| `rootfs` | `mmdebstrap` creates Ubuntu rootfs tarball | `build/appliance-rootfs.tar` |
 | `image` | Packs tarball into ext4 partition image | `build/rootfs-*.raw.zst` |
-| `iso` | Builds Secure Boot installer ISO with GRUB + live-boot | `build/mydistro-*.iso` |
+| `iso` | Builds Secure Boot installer ISO with GRUB + live-boot | `build/appliance-*.iso` |
 
 ## Configuration
 

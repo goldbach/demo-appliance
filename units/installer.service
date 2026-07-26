@@ -1,12 +1,12 @@
 [Unit]
-Description=MyDistro Field Installer
+Description=Appliance Field Installer
 ConditionKernelCommandLine=boot=live
 After=local-fs.target
 Conflicts=getty@tty1.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/lib/mydistro/installer-run.sh
+ExecStart=/usr/lib/appliance/installer-run.sh
 StandardInput=tty
 StandardOutput=tty
 StandardError=tty

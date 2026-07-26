@@ -1,14 +1,14 @@
 [Unit]
 Description=First-boot node configuration
 After=local-fs.target network.target
-ConditionPathExists=/etc/mydistro/machine.conf
+ConditionPathExists=/etc/appliance/machine.conf
 # Removed by firstboot.sh after successful run
-ConditionPathExists=!/var/lib/mydistro/firstboot-done
+ConditionPathExists=!/var/lib/appliance/firstboot-done
 
 [Service]
 Type=oneshot
-ExecStart=/usr/lib/mydistro/firstboot.sh
-ExecStartPost=/bin/touch /var/lib/mydistro/firstboot-done
+ExecStart=/usr/lib/appliance/firstboot.sh
+ExecStartPost=/bin/touch /var/lib/appliance/firstboot-done
 RemainAfterExit=yes
 StandardOutput=journal
 StandardError=journal

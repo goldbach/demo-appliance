@@ -1,12 +1,12 @@
 #!/bin/bash
-# Builds the MyDistro rootfs tarball using mmdebstrap.
+# Builds the Appliance rootfs tarball using mmdebstrap.
 # Runs unprivileged via user namespaces (--mode=unshare).
 #
 # Usage: ./scripts/build-rootfs.sh [output.tar]
 set -euo pipefail
 
 BUILD="${BUILD:-build}"
-OUTPUT="${1:-$BUILD/mydistro-rootfs.tar}"
+OUTPUT="${1:-$BUILD/appliance-rootfs.tar}"
 SUITES="resolute"
 MIRROR="deb http://archive.ubuntu.com/ubuntu/ $SUITES main restricted universe multiverse"
 
@@ -55,18 +55,18 @@ mmdebstrap \
     --customize-hook='mkdir -p "$1/usr/local/bin"' \
     --customize-hook='mkdir -p "$1/data"' \
     --customize-hook='mkdir -p "$1/etc/systemd/network" && printf "[Match]\nName=en* eth*\n\n[Network]\nDHCP=yes\n" > "$1/etc/systemd/network/20-wired.network"' \
-    --customize-hook='echo mydistro > "$1/etc/hostname"' \
-    --customize-hook='mkdir -p "$1/usr/lib/mydistro"' \
+    --customize-hook='echo appliance > "$1/etc/hostname"' \
+    --customize-hook='mkdir -p "$1/usr/lib/appliance"' \
     --customize-hook='mkdir -p "$1/etc/systemd/system"' \
     --customize-hook='copy-in vendor/k3s/bin/k3s /usr/local/bin/' \
-    --customize-hook='copy-in installer/installer-run.sh /usr/lib/mydistro/' \
-    --customize-hook='copy-in installer/install.sh /usr/lib/mydistro/' \
-    --customize-hook='copy-in firstboot/firstboot.sh /usr/lib/mydistro/' \
+    --customize-hook='copy-in installer/installer-run.sh /usr/lib/appliance/' \
+    --customize-hook='copy-in installer/install.sh /usr/lib/appliance/' \
+    --customize-hook='copy-in firstboot/firstboot.sh /usr/lib/appliance/' \
     --customize-hook='copy-in units/installer.service /etc/systemd/system/' \
     --customize-hook='copy-in units/firstboot.service /etc/systemd/system/' \
     --customize-hook='copy-in units/k3s-server.service /etc/systemd/system/' \
     --customize-hook='copy-in units/k3s-agent.service /etc/systemd/system/' \
-    --customize-hook='printf "disable k3s-server.service\ndisable k3s-agent.service\n" > "$1/usr/lib/systemd/system-preset/99-mydistro.preset"' \
+    --customize-hook='printf "disable k3s-server.service\ndisable k3s-agent.service\n" > "$1/usr/lib/systemd/system-preset/99-appliance.preset"' \
     --customize-hook='chroot "$1" update-initramfs -u' \
     --customize-hook='chroot "$1" systemctl preset-all' \
     "$SUITES" "$OUTPUT" "$MIRROR"

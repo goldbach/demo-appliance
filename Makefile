@@ -6,10 +6,10 @@ export K3S_VERSION
 
 # --- File targets (make skips when output exists and is newer than deps) ---
 
-ROOTFS_TAR  := $(BUILD)/mydistro-rootfs.tar
+ROOTFS_TAR  := $(BUILD)/appliance-rootfs.tar
 ROOTFS_RAW  := $(BUILD)/rootfs.raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
-ISO         := $(BUILD)/mydistro.iso
+ISO         := $(BUILD)/appliance.iso
 K3S_BIN     := vendor/k3s/bin/k3s
 K3S_IMAGES  := vendor/k3s/images/k3s-airgap-images-amd64.tar.zst
 
@@ -77,7 +77,7 @@ lima-test: lima-iso | lima-start
 		qemu-system-x86_64 -machine q35 -m 4096 -nographic \
 			-serial mon:stdio \
 			-boot d \
-			-drive file=build/mydistro.iso,media=cdrom,if=ide \
+			-drive file=build/appliance.iso,media=cdrom,if=ide \
 			-drive file=build/test-disk.raw,format=raw,if=virtio \
 			-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
 			-drive if=pflash,format=raw,file=build/OVMF_VARS.fd'
@@ -93,7 +93,7 @@ lima-test-secure: lima-iso | lima-start
 			-global driver=cfi.pflash01,property=secure,value=on \
 			-serial mon:stdio \
 			-boot d \
-			-drive file=build/mydistro.iso,media=cdrom,if=ide \
+			-drive file=build/appliance.iso,media=cdrom,if=ide \
 			-drive file=build/test-disk.raw,format=raw,if=virtio \
 			-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
 			-drive if=pflash,format=raw,file=build/OVMF_VARS.secure.fd'

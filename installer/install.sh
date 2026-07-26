@@ -56,7 +56,7 @@ unsquashfs -f -d /mnt "$SQUASHFS_IMAGE"
 
 # The squashfs carries the live environment's hostname; the installed
 # system gets the distro default back.
-echo mydistro > /mnt/etc/hostname
+echo appliance > /mnt/etc/hostname
 
 mkdir -p /mnt/boot/efi
 mount "$EFI_PART" /mnt/boot/efi
@@ -66,13 +66,13 @@ mount --bind /sys  /mnt/sys
 mount --bind /sys/firmware/efi/efivars /mnt/sys/firmware/efi/efivars 2>/dev/null || true
 
 log "Installing GRUB (Secure Boot signed)..."
-# No --no-nvram: grub-install registers a "mydistro" EFI boot entry and puts
+# No --no-nvram: grub-install registers an "appliance" EFI boot entry and puts
 # it first in BootOrder, so the box boots from disk after install even with
 # the installer medium still attached (firmware prefers removable media).
 chroot /mnt grub-install \
     --target=x86_64-efi \
     --efi-directory=/boot/efi \
-    --bootloader-id=mydistro
+    --bootloader-id=appliance
 chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 
 log "Removing live-environment leftovers..."
@@ -83,8 +83,8 @@ log "Removing live-environment leftovers..."
 chroot /mnt apt-get purge -y live-boot live-boot-initramfs-tools
 rm -f /mnt/etc/systemd/system/installer.service \
       /mnt/etc/systemd/system/multi-user.target.wants/installer.service \
-      /mnt/usr/lib/mydistro/installer-run.sh \
-      /mnt/usr/lib/mydistro/install.sh
+      /mnt/usr/lib/appliance/installer-run.sh \
+      /mnt/usr/lib/appliance/install.sh
 
 log "Writing /etc/fstab..."
 # root stays rw for now: firstboot, ssh host keys, timesync etc. need writable
@@ -100,8 +100,8 @@ UUID=$DATA_UUID  /data      ext4  defaults,x-systemd.makefs      0 2
 EOF
 
 log "Copying machine config..."
-mkdir -p /mnt/etc/mydistro
-install -m 0600 "$MACHINE_CONF" /mnt/etc/mydistro/machine.conf
+mkdir -p /mnt/etc/appliance
+install -m 0600 "$MACHINE_CONF" /mnt/etc/appliance/machine.conf
 
 log "Enabling first-boot unit..."
 chroot /mnt systemctl enable firstboot.service

@@ -1,4 +1,4 @@
-# Copy to /etc/mydistro/machine.conf before first boot.
+# Copy to /etc/appliance/machine.conf before first boot.
 # The installer writes this file; edit before imaging the certified box.
 
 # Role of this node: server | agent

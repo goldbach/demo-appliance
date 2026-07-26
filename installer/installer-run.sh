@@ -42,11 +42,11 @@ log "Medium: $MEDIUM_DEV"
 
 # Selected via the boot menu entry: skip all confirmation prompts
 AUTO=no
-grep -q "mydistro.install=auto" /proc/cmdline && AUTO=yes
+grep -q "appliance.install=auto" /proc/cmdline && AUTO=yes
 
 echo ""
 echo "======================================================"
-echo "  MyDistro Installer"
+echo "  Appliance Installer"
 echo "======================================================"
 echo ""
 
@@ -71,7 +71,7 @@ if [ ${#DISKS[@]} -eq 1 ]; then
     log "Target disk: $DISK (auto-detected)"
 elif [ "$AUTO" = yes ]; then
     # never guess which disk to wipe
-    die "mydistro.install=auto needs exactly one candidate disk, found ${#DISKS[@]}"
+    die "appliance.install=auto needs exactly one candidate disk, found ${#DISKS[@]}"
 else
     echo "Available disks:"
     for i in "${!DISKS[@]}"; do
@@ -93,7 +93,7 @@ echo ""
 echo "WARNING: ALL DATA ON $DISK WILL BE ERASED."
 echo ""
 if [ "$AUTO" = yes ]; then
-    log "mydistro.install=auto — proceeding without confirmation"
+    log "appliance.install=auto — proceeding without confirmation"
 else
     read -r -p "Type 'yes' to continue: " confirm
     [ "$confirm" = "yes" ] || { echo "Aborted."; exit 1; }
@@ -103,4 +103,4 @@ echo ""
 export SQUASHFS_IMAGE="$SQUASHFS"
 export MACHINE_CONF="$MACHINE_CONF"
 
-exec /usr/lib/mydistro/install.sh "$DISK"
+exec /usr/lib/appliance/install.sh "$DISK"

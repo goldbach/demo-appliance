@@ -40,7 +40,7 @@ LABEL install
 
 LABEL auto
     KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img boot=live mydistro.install=auto console=tty0 console=ttyS0,115200
+    APPEND initrd=/boot/initrd.img boot=live appliance.install=auto console=tty0 console=ttyS0,115200
 EOF
 
 # --- Kernel + initrd (with live-boot hooks baked in by update-initramfs) ---
@@ -62,7 +62,7 @@ SQUASH_ROOT="$WORK/squashfs-root"
 mkdir -p "$SQUASH_ROOT"
 tar -xf "$ROOTFS_TAR" -C "$SQUASH_ROOT" --exclude='./dev/*'
 # The squashfs is only ever the live/installer environment. rootfs.raw
-# (what install.sh writes to disk) keeps the rootfs hostname (mydistro).
+# (what install.sh writes to disk) keeps the rootfs hostname (appliance).
 echo live-boot > "$SQUASH_ROOT/etc/hostname"
 mksquashfs "$SQUASH_ROOT" "$ISO_ROOT/live/filesystem.squashfs" \
     -comp zstd -Xcompression-level 9 -noappend -quiet
@@ -96,13 +96,13 @@ set default=0
 
 search --file --set=root /live/filesystem.squashfs
 
-menuentry "Install MyDistro" {
+menuentry "Install Appliance" {
     linux  /boot/vmlinuz boot=live console=tty0 console=ttyS0,115200
     initrd /boot/initrd.img
 }
 
-menuentry "Install MyDistro (automatic, NO confirmation)" {
-    linux  /boot/vmlinuz boot=live mydistro.install=auto console=tty0 console=ttyS0,115200
+menuentry "Install Appliance (automatic, NO confirmation)" {
+    linux  /boot/vmlinuz boot=live appliance.install=auto console=tty0 console=ttyS0,115200
     initrd /boot/initrd.img
 }
 EOF
@@ -130,7 +130,7 @@ cp "$ESP" "$ISO_ROOT/boot/efi.img"
 #   2. efi.img (platform UEFI, via -e) — no load-size/info-table options
 xorriso -as mkisofs \
     -o "$OUT" \
-    -V "MYDISTRO" \
+    -V "APPLIANCE" \
     -R -r -J \
     -eltorito-boot isolinux/isolinux.bin \
     -eltorito-catalog isolinux/boot.cat \

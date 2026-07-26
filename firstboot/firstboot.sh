@@ -1,9 +1,9 @@
 #!/bin/bash
-# Runs once on first boot after install. Reads /etc/mydistro/machine.conf,
+# Runs once on first boot after install. Reads /etc/appliance/machine.conf,
 # configures k3s for the correct role, then disables itself.
 set -euo pipefail
 
-CONF=/etc/mydistro/machine.conf
+CONF=/etc/appliance/machine.conf
 K3S_CONFIG=/etc/rancher/k3s/config.yaml
 AIRGAP_DIR=/data/k3s-images
 

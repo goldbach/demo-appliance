@@ -29,6 +29,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
-          name: mydistro-${{ github.ref_name }}.iso
-          path: build/mydistro-*.iso
+          name: appliance-${{ github.ref_name }}.iso
+          path: build/appliance-*.iso
           retention-days: 30
