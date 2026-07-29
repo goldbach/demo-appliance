@@ -16,7 +16,7 @@ export K3S_VERSION ARCH ARCH_KERNEL
 
 # --- File targets (make skips when output exists and is newer than deps) ---
 
-ROOTFS_TAR  := $(BUILD)/appliance-rootfs-$(ARCH).tar
+ROOTFS_TAR  := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
 ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
 ISO         := $(BUILD)/appliance-$(ARCH).iso

@@ -63,7 +63,7 @@ make iso ARCH=amd64   # in the builder VM: cross build via Rosetta
 | Step | Command | Output |
 |------|---------|--------|
 | `fetch` | Downloads k3s binary + airgap images | `vendor/k3s/<arch>/` |
-| `rootfs` | `mmdebstrap` creates Ubuntu rootfs tarball | `build/appliance-rootfs-<arch>.tar` |
+| `rootfs` | `mmdebstrap` creates Ubuntu rootfs tarball | `build/appliance-rootfs-<arch>.tar.zst` |
 | `image` | Packs tarball into ext4 partition image | `build/rootfs-<arch>.raw.zst` |
 | `iso` | Builds Secure Boot installer ISO with GRUB + live-boot | `build/appliance-<arch>.iso` |
 

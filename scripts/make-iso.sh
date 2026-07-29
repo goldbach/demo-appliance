@@ -8,7 +8,7 @@
 #
 # UEFI boot works on amd64 and arm64; BIOS (isolinux) is amd64-only.
 #
-# Usage: [ARCH=arm64] make-iso.sh <rootfs.tar> <output.iso>
+# Usage: [ARCH=arm64] make-iso.sh <rootfs.tar[.zst]> <output.iso>
 set -euo pipefail
 
 ROOTFS_TAR="${1:?missing rootfs.tar}"

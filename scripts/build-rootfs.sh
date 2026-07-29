@@ -1,13 +1,15 @@
 #!/bin/bash
 # Builds the Appliance rootfs tarball using mmdebstrap.
 # Runs unprivileged via user namespaces (--mode=unshare).
+# The .tar.zst extension makes mmdebstrap emit a zstd-compressed tarball;
+# downstream tar -x/-t auto-detect the compression.
 #
-# Usage: ./scripts/build-rootfs.sh [output.tar]
+# Usage: ./scripts/build-rootfs.sh [output.tar.zst]
 set -euo pipefail
 
 BUILD="${BUILD:-build}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
-OUTPUT="${1:-$BUILD/appliance-rootfs-$ARCH.tar}"
+OUTPUT="${1:-$BUILD/appliance-rootfs-$ARCH.tar.zst}"
 SUITES="resolute"
 
 # amd64 lives on archive.ubuntu.com; every other arch on ports.ubuntu.com
@@ -49,7 +51,6 @@ mmdebstrap \
     --skip=check/qemu \
     --variant=minbase \
     --architectures="$ARCH" \
-    --format=tar \
     --include="${PACKAGES[*]}" \
     --dpkgopt='path-exclude=/usr/share/man/*' \
     --dpkgopt='path-exclude=/usr/share/locale/*' \

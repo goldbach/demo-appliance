@@ -1,7 +1,7 @@
 #!/bin/bash
 # Converts a rootfs tar into a raw ext4 partition image.
 # Uses mke2fs -d to populate without mounting (no root/losetup needed).
-# Usage: make-image.sh <rootfs.tar> <output.raw>
+# Usage: make-image.sh <rootfs.tar[.zst]> <output.raw>
 set -euo pipefail
 
 SRC="${1:?missing rootfs tar}"
