@@ -3,16 +3,19 @@
 #
 # The ISO boots the full Ubuntu rootfs as a live environment (overlayfs over
 # tmpfs). live-boot handles mounting. On boot, installer.service auto-launches
-# installer-run.sh which partitions the target disk and extracts the live
-# squashfs onto it — the squashfs doubles as the install payload.
+# installer-run.sh which partitions the target disk and writes the bundled
+# rootfs image (installer/rootfs.raw.zst) to slot A — the same image
+# systemd-sysupdate later writes on A/B updates. The squashfs only serves
+# as the live environment.
 #
 # UEFI boot works on amd64 and arm64; BIOS (isolinux) is amd64-only.
 #
-# Usage: [ARCH=arm64] make-iso.sh <rootfs.tar[.zst]> <output.iso>
+# Usage: [ARCH=arm64] make-iso.sh <rootfs.tar[.zst]> <rootfs.raw.zst> <output.iso>
 set -euo pipefail
 
 ROOTFS_TAR="${1:?missing rootfs.tar}"
-OUT="${2:?missing output iso path}"
+ROOTFS_IMG="${2:?missing rootfs.raw.zst}"
+OUT="${3:?missing output iso path}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
 
 # EFI naming: amd64 → grubx64/shimx64/BOOTx64, arm64 → grubaa64/shimaa64/BOOTAA64.
@@ -94,8 +97,8 @@ mksquashfs "$SQUASH_ROOT" "$ISO_ROOT/live/filesystem.squashfs" \
 printf '%s' "$(du -sx --block-size=1 "$SQUASH_ROOT" | cut -f1)" \
     > "$ISO_ROOT/live/filesystem.size"
 
-# --- Installer payload ---
-# No separate rootfs image: install.sh extracts live/filesystem.squashfs.
+# --- Installer payload: the A/B rootfs partition image ---
+install -m 0644 "$ROOTFS_IMG" "$ISO_ROOT/installer/rootfs.raw.zst"
 install -m 0600 firstboot/machine.conf.example "$ISO_ROOT/installer/machine.conf"
 
 # --- k3s air-gap images (copied to /data by install.sh) ---

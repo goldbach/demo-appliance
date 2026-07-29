@@ -43,8 +43,8 @@ $(ROOTFS_TAR): $(K3S_BIN) scripts/build-rootfs.sh
 $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh
 	./scripts/make-image.sh $< $(ROOTFS_RAW)
 
-$(ISO): $(ROOTFS_TAR) $(K3S_IMAGES) ./scripts/make-iso.sh
-	./scripts/make-iso.sh $(ROOTFS_TAR) $@
+$(ISO): $(ROOTFS_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) ./scripts/make-iso.sh
+	./scripts/make-iso.sh $(ROOTFS_TAR) $(ROOTFS_ZST) $@
 
 # Convenience aliases (for manual runs)
 

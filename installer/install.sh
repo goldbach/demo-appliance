@@ -1,10 +1,12 @@
 #!/bin/bash
-# Partitions the target disk, writes the rootfs, installs the bootloader.
-# Called by installer-run.sh with SQUASHFS_IMAGE and MACHINE_CONF set.
+# Partitions the target disk, writes the rootfs image, installs the
+# bootloader. Called by installer-run.sh with ROOTFS_IMAGE and MACHINE_CONF
+# set. ROOTFS_IMAGE is the same zstd-compressed partition image that
+# systemd-sysupdate writes on A/B updates.
 set -euo pipefail
 
 DISK="${1:?usage: install.sh <disk>}"
-SQUASHFS_IMAGE="${SQUASHFS_IMAGE:?SQUASHFS_IMAGE not set}"
+ROOTFS_IMAGE="${ROOTFS_IMAGE:?ROOTFS_IMAGE not set}"
 MACHINE_CONF="${MACHINE_CONF:?MACHINE_CONF not set}"
 
 # Sizes in MiB
@@ -43,20 +45,21 @@ ROOTFS_B=$(part "$DISK" 3)
 DATA_PART=$(part "$DISK" 4)
 
 log "Formatting..."
+# rootfs-a is not formatted — the image written below carries the filesystem
+# (and its rootfs-a label)
 mkfs.fat  -F32 -n EFI      "$EFI_PART"
-mkfs.ext4 -L   rootfs-a    "$ROOTFS_A"
 mkfs.ext4 -L   rootfs-b    "$ROOTFS_B"
 mkfs.ext4 -L   data        "$DATA_PART"
 
+log "Writing rootfs image to $ROOTFS_A (this takes a few minutes)..."
+zstd -dc "$ROOTFS_IMAGE" | dd of="$ROOTFS_A" bs=4M conv=fsync status=progress
+
+# The image is shrunk to minimum size — grow it to fill the 10 GiB slot
+e2fsck -fy "$ROOTFS_A"
+resize2fs "$ROOTFS_A"
+
 log "Mounting target rootfs..."
 mount "$ROOTFS_A" /mnt
-
-log "Extracting rootfs from squashfs (this takes a few minutes)..."
-unsquashfs -f -d /mnt "$SQUASHFS_IMAGE"
-
-# The squashfs carries the live environment's hostname; the installed
-# system gets the distro default back.
-echo appliance > /mnt/etc/hostname
 
 mkdir -p /mnt/boot/efi
 mount "$EFI_PART" /mnt/boot/efi
@@ -115,8 +118,8 @@ log "Copying k3s air-gap images to data partition..."
 mount "$DATA_PART" /mnt/data 2>/dev/null || true
 if [ -d /mnt/data ]; then
     mkdir -p /mnt/data/k3s-images
-    if [ -d "$(dirname "$SQUASHFS_IMAGE")/../k3s-images" ]; then
-        cp -v "$(dirname "$SQUASHFS_IMAGE")"/../k3s-images/*.tar.zst /mnt/data/k3s-images/ || true
+    if [ -d "$(dirname "$ROOTFS_IMAGE")/../k3s-images" ]; then
+        cp -v "$(dirname "$ROOTFS_IMAGE")"/../k3s-images/*.tar.zst /mnt/data/k3s-images/ || true
     fi
     umount /mnt/data
 fi

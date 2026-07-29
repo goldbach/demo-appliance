@@ -36,8 +36,9 @@ find_installer_medium() {
 
 log "Locating installer medium..."
 MEDIUM_DEV=$(find_installer_medium) || die "installer payload not found on any device"
-SQUASHFS="$MEDIUM_MOUNT/live/filesystem.squashfs"
+ROOTFS_IMAGE="$MEDIUM_MOUNT/installer/rootfs.raw.zst"
 MACHINE_CONF="$MEDIUM_MOUNT/installer/machine.conf"
+[ -f "$ROOTFS_IMAGE" ] || die "rootfs image missing on installer medium"
 log "Medium: $MEDIUM_DEV"
 
 # Selected via the boot menu entry: skip all confirmation prompts
@@ -88,7 +89,7 @@ fi
 
 echo ""
 log "Install target : $DISK"
-log "Rootfs image   : $SQUASHFS"
+log "Rootfs image   : $ROOTFS_IMAGE"
 echo ""
 echo "WARNING: ALL DATA ON $DISK WILL BE ERASED."
 echo ""
@@ -100,7 +101,7 @@ else
 fi
 echo ""
 
-export SQUASHFS_IMAGE="$SQUASHFS"
-export MACHINE_CONF="$MACHINE_CONF"
+export ROOTFS_IMAGE
+export MACHINE_CONF
 
 exec /usr/lib/appliance/install.sh "$DISK"

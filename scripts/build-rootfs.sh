@@ -32,8 +32,8 @@ PACKAGES=(
     # k3s host deps: netlink tools, kube-proxy iptables/conntrack, modprobe
     iproute2 iptables conntrack kmod
     # installer (runs in the live env) + node maintenance:
-    # partition, format, EFI boot entry, extract squashfs
-    parted dosfstools e2fsprogs efibootmgr squashfs-tools
+    # partition, format, write rootfs image, EFI boot entry
+    parted dosfstools e2fsprogs efibootmgr
     # bootloader (Secure Boot)
     "grub-efi-${ARCH}-signed" shim-signed
     # minimal ops: ps/free/sysctl; zstd for A/B update images
