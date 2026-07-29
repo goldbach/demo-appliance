@@ -65,6 +65,7 @@ mmdebstrap \
     --customize-hook="copy-in vendor/k3s/$ARCH/bin/k3s /usr/local/bin/" \
     --customize-hook='copy-in installer/installer-run.sh /usr/lib/appliance/' \
     --customize-hook='copy-in installer/install.sh /usr/lib/appliance/' \
+    --customize-hook='copy-in installer/installer.d /usr/lib/appliance/' \
     --customize-hook='copy-in firstboot/firstboot.sh /usr/lib/appliance/' \
     --customize-hook='copy-in firstboot/firstboot.d /usr/lib/appliance/' \
     --customize-hook='copy-in units/installer.service /etc/systemd/system/' \
