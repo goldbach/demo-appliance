@@ -23,24 +23,19 @@ PACKAGES=(
     linux-image-generic initramfs-tools live-boot live-boot-initramfs-tools
     # init / system
     systemd systemd-resolved systemd-sysv systemd-timesyncd udev dbus
-    # certs / transport
-    ca-certificates apt-transport-https
+    # certs (k3s pulls images over TLS)
+    ca-certificates
     # ssh
     openssh-server
-    # network
-    iproute2 iputils-ping iptables nftables bridge-utils
-    ethtool dnsutils tcpdump socat netcat-openbsd
-    # k3s deps
-    conntrack kmod nfs-common open-iscsi
-    # installer (runs in the live env): partition, format, boot entry, extract
+    # k3s host deps: netlink tools, kube-proxy iptables/conntrack, modprobe
+    iproute2 iptables conntrack kmod
+    # installer (runs in the live env) + node maintenance:
+    # partition, format, EFI boot entry, extract squashfs
     parted dosfstools e2fsprogs efibootmgr squashfs-tools
-    # container runtime (k3s bundles its own, but needed for image prep)
-    containerd
     # bootloader (Secure Boot)
     "grub-efi-${ARCH}-signed" shim-signed
-    # tools
-    curl wget vim less jq htop lsof strace
-    bash-completion psmisc procps util-linux zstd
+    # minimal ops: ps/free/sysctl; zstd for A/B update images
+    procps zstd
 )
 
 log() { echo "[build-rootfs] $*"; }
