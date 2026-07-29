@@ -26,7 +26,7 @@ limactl start --tty=false builder.yaml   # one-time: creates the VM
                                          #  image download + provisioning —
                                          #  then exits; VM keeps running)
 limactl shell builder                 # drops you into the same directory
-sudo ./scripts/install-build-deps.sh  # one-time, inside the VM
+make deps                             # one-time, inside the VM
 ```
 
 The VM (`builder.yaml`) runs Ubuntu 26.04 arm64 on Apple Virtualization with

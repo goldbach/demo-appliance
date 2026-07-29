@@ -27,6 +27,14 @@ mounts:
     writable: true
 
 provision:
+  # make is the entry point for everything — have it ready before
+  # scripts/install-build-deps.sh has run (that script installs the rest)
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      apt-get update
+      apt-get install -y --no-install-recommends make
   # Subordinate id ranges for mmdebstrap --mode=unshare. Runs as the default
   # user (passwordless sudo) to avoid guessing the username from templates.
   - mode: user

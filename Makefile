@@ -24,9 +24,13 @@ K3S_BIN     := vendor/k3s/$(ARCH)/bin/k3s
 K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH).tar.zst
 K3S_STAMP   := vendor/k3s/$(ARCH)/.fetched-$(K3S_VERSION)
 
-.PHONY: all fetch rootfs image iso iso-info clean distclean clean-iso clean-rootfs test test-secure test-deps
+.PHONY: all deps fetch rootfs image iso iso-info clean distclean clean-iso clean-rootfs test test-secure test-deps
 
 all: iso
+
+# one-time host setup (build tools; run again after the list changes)
+deps:
+	sudo ./scripts/install-build-deps.sh
 
 # The stamp carries K3S_VERSION in its name, so a version bump makes it
 # "missing" and triggers a re-fetch (which wipes the old vendor/k3s/$(ARCH)).
