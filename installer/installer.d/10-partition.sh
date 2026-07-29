@@ -2,7 +2,10 @@
 # Install step: partition the target disk and format EFI, rootfs-b and data.
 # rootfs-a is not formatted — the image written by 20-rootfs.sh carries the
 # filesystem (with its neutral "rootfs" fs label; slot identity is the GPT
-# partition label).
+# partition label). rootfs-b gets no image at install time; it is formatted
+# to clear stale bytes from the disk's former life (mklabel rewrites the
+# partition table, not partition contents — an unformatted slot B could show
+# up in blkid with a duplicate UUID/label from a previous install).
 set -euo pipefail
 
 # Sizes in MiB

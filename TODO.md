@@ -159,6 +159,18 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
 - `resize2fs -M` shrinks the image but root is rw for now → add
   `x-systemd.growfs` to the root fstab entry (or fixed-size images later
   when root goes ro).
+- Free-block tail: a shrunk image written into a 10 GiB slot leaves the old
+  slot's bytes in what become free blocks after growfs. Filesystem-consistent
+  (growfs rewrites all metadata; free blocks are never readable via files),
+  but raw-readable with disk access — matters only while secrets live on the
+  slot (machine.conf/CLUSTER_TOKEN today, baked-in ssh host keys until the
+  `/data` move). Same property at install: slot A's tail holds the disk's
+  former life.
+  **Chosen fix (deferred): `blkdiscard` before every image write** — in
+  `10-partition.sh` after repartitioning (whole disk, also speeds up the
+  install `dd` on SSDs) and in the sysupdate flow (inactive slot before
+  writing the update). Full-size images were the alternative (zstd makes the
+  zeroed tail ~free in the artifact) but discard is one line in each place.
 
 ### Caveat: rollback is OS-level only
 
