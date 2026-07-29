@@ -44,8 +44,9 @@ limactl shell builder
 ```
 
 ```bash
-make iso              # full pipeline: fetch → rootfs → image → iso
-make rootfs           # just the rootfs tarball
+make iso              # full pipeline: fetch → rootfs + live → image → iso
+make rootfs           # just the payload rootfs tarball
+make live             # just the micro live (installer) rootfs tarball
 make test             # boot the ISO in QEMU (UEFI)
 make test-secure      # same with Secure Boot enabled (amd64 only)
 ```
@@ -63,9 +64,35 @@ make iso ARCH=amd64   # in the builder VM: cross build via Rosetta
 | Step | Command | Output |
 |------|---------|--------|
 | `fetch` | Downloads k3s binary + airgap images | `vendor/k3s/<arch>/` |
-| `rootfs` | `mmdebstrap` creates Ubuntu rootfs tarball | `build/appliance-rootfs-<arch>.tar.zst` |
-| `image` | Packs tarball into ext4 partition image | `build/rootfs-<arch>.raw.zst` |
-| `iso` | Builds Secure Boot installer ISO (bundles the rootfs image + k3s images) | `build/appliance-<arch>.iso` |
+| `live` | `mmdebstrap` creates the micro live rootfs (installer env) | `build/live-rootfs-<arch>.tar.zst` |
+| `rootfs` | `mmdebstrap` creates the payload rootfs tarball (node OS) | `build/appliance-rootfs-<arch>.tar.zst` |
+| `image` | Packs payload tarball into ext4 partition image | `build/rootfs-<arch>.raw.zst` |
+| `iso` | Builds Secure Boot installer ISO | `build/appliance-<arch>.iso` |
+
+## Who ships what
+
+The ISO carries three things, with very different rebuild costs:
+
+1. **Live env** (`live/filesystem.squashfs`) — a minimal rootfs that boots
+   the installer: kernel, systemd, disk tools, and `installer-run.sh`
+   (medium/disk discovery + confirmation). Nothing k3s-related.
+2. **Payload image** (`installer/rootfs.raw.zst`) — the full node OS written
+   to slot A: k3s, openssh, grub, systemd units. The same image
+   systemd-sysupdate writes on A/B updates.
+3. **Plain-file scripts** (`installer/install.sh`, `installer/installer.d/`,
+   `installer/firstboot.sh`, `installer/firstboot.d/`,
+   `installer/machine.conf`) — packed onto the ISO as-is. `installer-run.sh`
+   re-execs `install.sh` from the mounted medium, and the install copies the
+   firstboot scripts into the target. These are the files you edit most
+   often, so they are deliberately *not* baked into either rootfs.
+
+Iteration cost by change:
+
+| Change | Rebuild |
+|--------|---------|
+| firstboot / installer script | `make iso` — squashfs of the micro live + repack (fast) |
+| payload package | `make rootfs` (slow, rare) → `image` → `iso` |
+| kernel / live tooling | `make live` → `iso` |
 
 ## Configuration
 
@@ -73,7 +100,7 @@ make iso ARCH=amd64   # in the builder VM: cross build via Rosetta
 |------|---------|
 | `Makefile` | Build targets and package list |
 | `builder.yaml` | Lima VM config (ARM64 VZ + Rosetta, 4 CPU, 8GB RAM, 40GB disk) |
-| `installer/` | Disk partitioning and bootloader install |
-| `firstboot/` | First-boot node configuration |
+| `installer/` | Installer entry points + `installer.d/` install steps (disk, bootloader, config) |
+| `firstboot/` | First-boot entry point + `firstboot.d/` node-setup steps (k3s role) |
 | `units/` | systemd units (k3s, installer, firstboot) |
 | `sysupdate/` | A/B OTA updates via systemd-sysupdate |

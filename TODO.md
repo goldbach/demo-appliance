@@ -2,43 +2,40 @@
 
 ## Split live-boot env from install payload
 
-Currently `live/filesystem.squashfs` does double duty: it's both the booted
-installer environment and the install payload (`install.sh` unsquashfs's it
-straight onto the target disk). Idea: split into two images.
+**Implemented 2026-07-29**, with a better outcome than sketched below: the
+payload was already a partition image (`installer/rootfs.raw.zst`), not a
+squashfs, so the split *does* shrink the ISO — the full rootfs no longer
+appears twice.
 
-- **Live env** (boots the ISO, runs the installer): minimal. Drop containerd,
-  k3s, and nvidia/amdgpu/wifi/bt/modem firmware unconditionally — it never
-  touches a GPU or joins WiFi, only needs to see the install disk + a NIC.
-- **Target payload** (what `install.sh` writes to disk): unchanged, full
-  fat — keeps nvidia firmware etc. for AI workloads on cluster nodes.
+- **Live env** (`scripts/build-live.sh` → `live/filesystem.squashfs`):
+  minimal mmdebstrap build — kernel, systemd, disk tools, live-boot,
+  `installer-run.sh` + `installer.service`. No k3s, ssh, iptables, certs.
+  Shim/grub signed binaries are included only so `make-iso.sh` can extract
+  the ISO boot files from the live tar.
+- **Payload** (`scripts/build-rootfs.sh` → `installer/rootfs.raw.zst`):
+  unchanged full node OS. Lost `live-boot*` (the installer's initrd-purge
+  step went with it) and all installer/firstboot scripts.
+- **Scripts on the ISO as plain files** (`/installer/`): `install.sh`,
+  `installer.d/`, `firstboot.sh`, `firstboot.d/`, `machine.conf`.
+  `installer-run.sh` re-execs `install.sh` from the mounted medium; the
+  install copies the firstboot scripts into the target. Iterating on
+  firstboot/installer logic = `make iso` repack only, no rootfs rebuild.
 
-Why it's safe to trim the live env independently: the target rootfs already
-regenerates its own initrd/grub config fresh inside the chroot at install
-time (see `6760d94` "fixes"), so the live kernel's module/firmware set is
-already decoupled from what ends up installed.
-
-Cost / scope if implemented:
-- `build-rootfs.sh` parameterized or split (`build-rootfs.sh` /
-  `build-live-rootfs.sh`) — shared base, divergent `PACKAGES` +
-  `customize-hook`s.
-- `make-iso.sh` emits two squashfs images instead of one (small
-  `live/filesystem.squashfs` + full `installer/payload.squashfs`).
-- `installer-run.sh` / `install.sh`: distinguish "medium I booted from"
-  (still located via `live/filesystem.squashfs`) from "payload to unsquashfs"
-  (new separate file on the same medium).
-- Two `mmdebstrap` runs instead of one → build time roughly doubles.
-- Does **not** meaningfully shrink total ISO size (no dedup between the two
-  squashfs images) — the win is live-boot RAM/decompress time and
-  decoupling "what's needed to install" from "what ends up on a node."
-
-Scope as its own change; touches Makefile, both build scripts, make-iso.sh,
-install.sh, installer-run.sh.
+Original sketch (kept for the follow-on notes): live env would drop
+containerd, k3s, and nvidia/amdgpu/wifi/bt/modem firmware unconditionally —
+it never touches a GPU or joins WiFi, only needs to see the install disk +
+a NIC. Payload keeps nvidia firmware etc. for AI workloads. (Firmware
+partially addressed: the live env uses `linux-firmware-minimal`, which
+satisfies `linux-image-generic`'s "linux-firmware | linux-firmware-minimal"
+dep and covers disk/NIC — live squashfs ~335 MB vs ~1.1 GB with full
+firmware. Whether `-minimal` covers the certified box's NIC needs a
+real-hardware install test; if not, add the specific firmware files back.)
 
 ### Follow-on: mmdebstrap --format=squashfs
 
-Once the live/target split above exists, each of the two `mmdebstrap` runs
-could stream straight to squashfs instead of tar, dropping `make-iso.sh`'s
-separate `mksquashfs` pass entirely.
+Now that the live/target split exists, the live `mmdebstrap` run could
+stream straight to squashfs instead of tar, dropping `make-iso.sh`'s
+separate `mksquashfs` pass.
 
 - `mmdebstrap 1.5.7` (confirmed in the `builder` VM) supports
   `--format=squashfs` natively, but via `tar2sqfs` (needs `squashfs-tools-ng`,
@@ -47,16 +44,12 @@ separate `mksquashfs` pass entirely.
   used today, and there's no `--format-options` flag to change it — keeping
   zstd means bypassing the shortcut with a manual
   `mmdebstrap | mmtarfilter | tar2sqfs --compressor zstd` pipe instead.
-- Not worth it under the *current* single-tar architecture: the tar is still
-  needed to patch `/etc/hostname` before squashing (squashfs isn't editable
-  in place, so unsquash→edit→resquash is unavoidable either way) and to pull
-  standalone kernel/initrd/grub/shim files (`tar -tf`/`tar -xf` would become
+- The hostname blocker is gone: `build-live.sh` bakes `live-boot` in via its
+  own `customize-hook` (the split's whole point). Remaining blocker:
+  `make-iso.sh` still needs the tar to pull standalone
+  kernel/initrd/grub/shim files (`tar -tf`/`tar -xf` would become
   `unsquashfs -f -d dest image path...` — doable, but a rewrite, not a
   deletion).
-- Pairs naturally with the split: the live-env build can bake its
-  `live-boot` hostname in via its own `customize-hook` (no post-hoc patch
-  needed) and stream directly to `live/filesystem.squashfs`; same for the
-  target payload with `appliance` hostname.
 
 ## A/B rootfs updates (design chat 2026-07-29)
 

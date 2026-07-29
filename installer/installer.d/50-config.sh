@@ -21,5 +21,14 @@ log "Copying machine config..."
 mkdir -p /mnt/etc/appliance
 install -m 0600 "$MACHINE_CONF" /mnt/etc/appliance/machine.conf
 
+log "Installing first-boot scripts..."
+# firstboot.sh and its steps are plain files on the installer medium (next
+# to machine.conf), so firstboot fixes ship via ISO repack, not a rootfs
+# rebuild.
+ISO_DIR=$(dirname "$MACHINE_CONF")
+install -m 0755 "$ISO_DIR/firstboot.sh" /mnt/usr/lib/appliance/firstboot.sh
+mkdir -p /mnt/usr/lib/appliance/firstboot.d
+install -m 0755 "$ISO_DIR"/firstboot.d/*.sh /mnt/usr/lib/appliance/firstboot.d/
+
 log "Enabling first-boot unit..."
 chroot /mnt systemctl enable firstboot.service

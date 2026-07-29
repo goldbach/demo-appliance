@@ -1,5 +1,8 @@
 #!/bin/bash
-# Builds the Appliance rootfs tarball using mmdebstrap.
+# Builds the Appliance payload rootfs tarball using mmdebstrap: the full
+# node OS (k3s, ssh, grub) that install.sh writes to disk and
+# systemd-sysupdate later writes on A/B updates. The installer/live
+# environment is a separate minimal build — see build-live.sh.
 # Runs unprivileged via user namespaces (--mode=unshare).
 # The .tar.zst extension makes mmdebstrap emit a zstd-compressed tarball;
 # downstream tar -x/-t auto-detect the compression.
@@ -22,7 +25,7 @@ MIRROR="deb $MIRROR_URL $SUITES main restricted universe multiverse"
 
 PACKAGES=(
     # kernel / boot
-    linux-image-generic initramfs-tools live-boot live-boot-initramfs-tools
+    linux-image-generic initramfs-tools
     # init / system
     systemd systemd-resolved systemd-sysv systemd-timesyncd udev dbus
     # certs (k3s pulls images over TLS)
@@ -31,13 +34,13 @@ PACKAGES=(
     openssh-server
     # k3s host deps: netlink tools, kube-proxy iptables/conntrack, modprobe
     iproute2 iptables conntrack kmod
-    # installer (runs in the live env) + node maintenance:
-    # partition, format, write rootfs image, EFI boot entry
-    parted dosfstools e2fsprogs efibootmgr
-    # bootloader (Secure Boot)
+    # node maintenance: partition, format, EFI boot entry, A/B update images
+    parted dosfstools e2fsprogs efibootmgr zstd
+    # bootloader (Secure Boot); install runs grub-install chrooted, so the
+    # binaries must live in the payload, not the live env
     "grub-efi-${ARCH}-signed" shim-signed
-    # minimal ops: ps/free/sysctl; zstd for A/B update images
-    procps zstd
+    # minimal ops: ps/free/sysctl
+    procps
 )
 
 log() { echo "[build-rootfs] $*"; }
@@ -63,12 +66,6 @@ mmdebstrap \
     --customize-hook='mkdir -p "$1/usr/lib/appliance"' \
     --customize-hook='mkdir -p "$1/etc/systemd/system"' \
     --customize-hook="copy-in vendor/k3s/$ARCH/bin/k3s /usr/local/bin/" \
-    --customize-hook='copy-in installer/installer-run.sh /usr/lib/appliance/' \
-    --customize-hook='copy-in installer/install.sh /usr/lib/appliance/' \
-    --customize-hook='copy-in installer/installer.d /usr/lib/appliance/' \
-    --customize-hook='copy-in firstboot/firstboot.sh /usr/lib/appliance/' \
-    --customize-hook='copy-in firstboot/firstboot.d /usr/lib/appliance/' \
-    --customize-hook='copy-in units/installer.service /etc/systemd/system/' \
     --customize-hook='copy-in units/firstboot.service /etc/systemd/system/' \
     --customize-hook='copy-in units/k3s-server.service /etc/systemd/system/' \
     --customize-hook='copy-in units/k3s-agent.service /etc/systemd/system/' \

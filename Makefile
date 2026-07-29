@@ -17,6 +17,7 @@ export K3S_VERSION ARCH ARCH_KERNEL
 # --- File targets (make skips when output exists and is newer than deps) ---
 
 ROOTFS_TAR  := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
+LIVE_TAR    := $(BUILD)/live-rootfs-$(ARCH).tar.zst
 ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
 ISO         := $(BUILD)/appliance-$(ARCH).iso
@@ -24,7 +25,14 @@ K3S_BIN     := vendor/k3s/$(ARCH)/bin/k3s
 K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH).tar.zst
 K3S_STAMP   := vendor/k3s/$(ARCH)/.fetched-$(K3S_VERSION)
 
-.PHONY: all deps fetch rootfs image iso iso-info clean distclean clean-iso clean-rootfs test test-secure test-deps
+# Scripts/units that get baked into the images or packed onto the ISO —
+# editing them must trigger the right rebuild/repack.
+PAYLOAD_UNITS := units/firstboot.service units/k3s-server.service units/k3s-agent.service
+ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
+                 firstboot/firstboot.sh $(wildcard firstboot/firstboot.d/*.sh) \
+                 firstboot/machine.conf.example
+
+.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs test test-secure test-deps
 
 all: iso
 
@@ -37,18 +45,22 @@ deps:
 $(K3S_BIN) $(K3S_IMAGES) $(K3S_STAMP) &: scripts/fetch-k3s.sh
 	./scripts/fetch-k3s.sh
 
-$(ROOTFS_TAR): $(K3S_BIN) scripts/build-rootfs.sh
+$(ROOTFS_TAR): $(K3S_BIN) $(PAYLOAD_UNITS) scripts/build-rootfs.sh
 	./scripts/build-rootfs.sh
+
+$(LIVE_TAR): installer/installer-run.sh units/installer.service scripts/build-live.sh
+	./scripts/build-live.sh
 
 $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh
 	./scripts/make-image.sh $< $(ROOTFS_RAW)
 
-$(ISO): $(ROOTFS_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) ./scripts/make-iso.sh
-	./scripts/make-iso.sh $(ROOTFS_TAR) $(ROOTFS_ZST) $@
+$(ISO): $(LIVE_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) $(ISO_SCRIPTS) ./scripts/make-iso.sh
+	./scripts/make-iso.sh $(LIVE_TAR) $(ROOTFS_ZST) $@
 
 # Convenience aliases (for manual runs)
 
 fetch: $(K3S_BIN) $(K3S_IMAGES)
+live: $(LIVE_TAR)
 rootfs: $(ROOTFS_TAR)
 image: $(ROOTFS_ZST)
 iso: $(ISO)
@@ -65,6 +77,9 @@ distclean: clean
 
 clean-iso:
 	rm -f $(ISO)
+
+clean-live:
+	rm -f $(LIVE_TAR)
 
 clean-rootfs:
 	rm -f $(ROOTFS_TAR)

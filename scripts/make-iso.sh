@@ -1,19 +1,21 @@
 #!/bin/bash
 # Builds a Secure Boot-compatible installer ISO using live-boot.
 #
-# The ISO boots the full Ubuntu rootfs as a live environment (overlayfs over
-# tmpfs). live-boot handles mounting. On boot, installer.service auto-launches
-# installer-run.sh which partitions the target disk and writes the bundled
-# rootfs image (installer/rootfs.raw.zst) to slot A — the same image
-# systemd-sysupdate later writes on A/B updates. The squashfs only serves
-# as the live environment.
+# The ISO boots the micro live rootfs (build-live.sh) as the installer
+# environment (overlayfs over tmpfs). On boot, installer.service launches
+# installer-run.sh, which re-execs install.sh from the installer medium.
+# install.sh partitions the target disk and writes the bundled payload image
+# (installer/rootfs.raw.zst — the same image systemd-sysupdate writes on A/B
+# updates) to slot A. Frequently-edited scripts (install.sh, installer.d/,
+# firstboot.sh, firstboot.d/) are plain files on the ISO, so iterating on
+# them only requires an ISO repack, not a rootfs rebuild.
 #
 # UEFI boot works on amd64 and arm64; BIOS (isolinux) is amd64-only.
 #
-# Usage: [ARCH=arm64] make-iso.sh <rootfs.tar[.zst]> <rootfs.raw.zst> <output.iso>
+# Usage: [ARCH=arm64] make-iso.sh <live.tar[.zst]> <rootfs.raw.zst> <output.iso>
 set -euo pipefail
 
-ROOTFS_TAR="${1:?missing rootfs.tar}"
+LIVE_TAR="${1:?missing live-rootfs.tar}"
 ROOTFS_IMG="${2:?missing rootfs.raw.zst}"
 OUT="${3:?missing output iso path}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
@@ -36,15 +38,15 @@ trap 'rm -rf "$WORK"' EXIT
 ISO_ROOT="$WORK/iso"
 mkdir -p "$ISO_ROOT"/{boot/grub,EFI/BOOT,EFI/ubuntu,live,installer}
 
-# --- Bootloader: signed EFI binaries from rootfs ---
+# --- Bootloader: signed EFI binaries from the live rootfs ---
 # shim ships as .signed.latest on amd64 but plain .signed on some arches —
-# take whichever the rootfs has (sort puts .latest last).
-SHIM_PATH=$(tar -tf "$ROOTFS_TAR" \
+# take whichever the tarball has (sort puts .latest last).
+SHIM_PATH=$(tar -tf "$LIVE_TAR" \
     | grep -E "^\./usr/lib/shim/shim${EFI}\.efi\.signed(\.latest)?$" \
     | sort | tail -1)
-[ -n "$SHIM_PATH" ] || { echo "[make-iso] ERROR: no signed shim in rootfs" >&2; exit 1; }
+[ -n "$SHIM_PATH" ] || { echo "[make-iso] ERROR: no signed shim in live rootfs" >&2; exit 1; }
 GRUB_PATH="./usr/lib/grub/$GRUB_PLATFORM-signed/$GRUB_EFI.signed"
-tar -xf "$ROOTFS_TAR" -C "$WORK" --exclude='./dev/*' \
+tar -xf "$LIVE_TAR" -C "$WORK" --exclude='./dev/*' \
     "$GRUB_PATH" \
     "$SHIM_PATH"
 cp "$WORK/${GRUB_PATH#./}" "$ISO_ROOT/EFI/BOOT/$GRUB_EFI"
@@ -73,33 +75,39 @@ fi
 
 # --- Kernel + initrd (with live-boot hooks baked in by update-initramfs) ---
 # vmlinuz and initrd.img are symlinks — extract the real files
-KERNEL=$(tar -tf "$ROOTFS_TAR" | grep '^./boot/vmlinuz-[0-9]' | head -1)
-INITRD=$(tar -tf "$ROOTFS_TAR" | grep '^./boot/initrd.img-[0-9]' | head -1)
+KERNEL=$(tar -tf "$LIVE_TAR" | grep '^./boot/vmlinuz-[0-9]' | head -1)
+INITRD=$(tar -tf "$LIVE_TAR" | grep '^./boot/initrd.img-[0-9]' | head -1)
 if [ -z "$INITRD" ]; then
     INITRD="./boot/initrd.img"  # fall back to the symlink itself
 fi
-tar -xf "$ROOTFS_TAR" -C "$WORK" --exclude='./dev/*' \
+tar -xf "$LIVE_TAR" -C "$WORK" --exclude='./dev/*' \
     "$KERNEL" \
     "$INITRD"
 cp "$WORK/${KERNEL#./}"   "$ISO_ROOT/boot/vmlinuz"
 cp "$WORK/${INITRD#./}"   "$ISO_ROOT/boot/initrd.img"
 
-# --- Squashfs: the live rootfs that boots in RAM ---
+# --- Squashfs: the micro live rootfs that boots in RAM ---
 echo "Building squashfs (this takes a minute)..."
 SQUASH_ROOT="$WORK/squashfs-root"
 mkdir -p "$SQUASH_ROOT"
-tar -xf "$ROOTFS_TAR" -C "$SQUASH_ROOT" --exclude='./dev/*'
-# The squashfs is only ever the live/installer environment. rootfs.raw
-# (what install.sh writes to disk) keeps the rootfs hostname (appliance).
-echo live-boot > "$SQUASH_ROOT/etc/hostname"
+tar -xf "$LIVE_TAR" -C "$SQUASH_ROOT" --exclude='./dev/*'
 mksquashfs "$SQUASH_ROOT" "$ISO_ROOT/live/filesystem.squashfs" \
     -comp zstd -Xcompression-level 9 -noappend -quiet
 printf '%s' "$(du -sx --block-size=1 "$SQUASH_ROOT" | cut -f1)" \
     > "$ISO_ROOT/live/filesystem.size"
 
-# --- Installer payload: the A/B rootfs partition image ---
+# --- Installer payload: the A/B rootfs partition image + scripts ---
+# The frequently-edited scripts live on the ISO as plain files: install.sh
+# and firstboot.sh are re-exec'd / copied from the mounted medium at install
+# time, so iterating on them never requires a rootfs rebuild.
 install -m 0644 "$ROOTFS_IMG" "$ISO_ROOT/installer/rootfs.raw.zst"
 install -m 0600 firstboot/machine.conf.example "$ISO_ROOT/installer/machine.conf"
+install -m 0755 installer/install.sh "$ISO_ROOT/installer/install.sh"
+cp -r installer/installer.d "$ISO_ROOT/installer/"
+chmod 0755 "$ISO_ROOT/installer/installer.d"/*.sh
+install -m 0755 firstboot/firstboot.sh "$ISO_ROOT/installer/firstboot.sh"
+cp -r firstboot/firstboot.d "$ISO_ROOT/installer/"
+chmod 0755 "$ISO_ROOT/installer/firstboot.d"/*.sh
 
 # --- k3s air-gap images (copied to /data by install.sh) ---
 K3S_IMAGES="vendor/k3s/$ARCH/images"

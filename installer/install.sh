@@ -1,15 +1,16 @@
 #!/bin/bash
-# Entry point for the disk-install steps in /usr/lib/appliance/installer.d/
-# (executed in glob order). Called by installer-run.sh with ROOTFS_IMAGE and
-# MACHINE_CONF set. ROOTFS_IMAGE is the same zstd-compressed partition image
-# that systemd-sysupdate writes on A/B updates.
+# Entry point for the disk-install steps in installer.d/ next to this script
+# (executed in glob order). Called by installer-run.sh from the installer
+# medium with ROOTFS_IMAGE and MACHINE_CONF set. ROOTFS_IMAGE is the same
+# zstd-compressed partition image that systemd-sysupdate writes on A/B
+# updates.
 set -euo pipefail
 
 export DISK="${1:?usage: install.sh <disk>}"
 export ROOTFS_IMAGE="${ROOTFS_IMAGE:?ROOTFS_IMAGE not set}"
 export MACHINE_CONF="${MACHINE_CONF:?MACHINE_CONF not set}"
 
-STEPS_DIR=/usr/lib/appliance/installer.d
+STEPS_DIR="$(dirname "$0")/installer.d"
 
 log() { echo "[install] $*"; }
 

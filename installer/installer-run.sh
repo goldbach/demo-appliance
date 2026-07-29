@@ -104,4 +104,7 @@ echo ""
 export ROOTFS_IMAGE
 export MACHINE_CONF
 
-exec /usr/lib/appliance/install.sh "$DISK"
+# install.sh and its steps live on the medium as plain files (not baked into
+# the live env), so iterating on them only needs an ISO repack. The medium
+# stays mounted throughout — rootfs.raw.zst is read from it.
+exec bash "$MEDIUM_MOUNT/installer/install.sh" "$DISK"
