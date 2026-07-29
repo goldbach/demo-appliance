@@ -1,24 +1,36 @@
 VERSION     ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
 K3S_VERSION := v1.36.2+k3s1
+ARCH        ?= $(shell dpkg --print-architecture)
 BUILD       := build
 
-export K3S_VERSION
+# kernel / uname -m spelling of ARCH
+ifeq ($(ARCH),amd64)
+ARCH_KERNEL := x86_64
+else ifeq ($(ARCH),arm64)
+ARCH_KERNEL := aarch64
+else
+$(error unsupported ARCH '$(ARCH)' (amd64|arm64))
+endif
+
+export K3S_VERSION ARCH ARCH_KERNEL
 
 # --- File targets (make skips when output exists and is newer than deps) ---
 
-ROOTFS_TAR  := $(BUILD)/appliance-rootfs.tar
-ROOTFS_RAW  := $(BUILD)/rootfs.raw
+ROOTFS_TAR  := $(BUILD)/appliance-rootfs-$(ARCH).tar
+ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
-ISO         := $(BUILD)/appliance.iso
-K3S_BIN     := vendor/k3s/bin/k3s
-K3S_IMAGES  := vendor/k3s/images/k3s-airgap-images-amd64.tar.zst
+ISO         := $(BUILD)/appliance-$(ARCH).iso
+K3S_BIN     := vendor/k3s/$(ARCH)/bin/k3s
+K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH).tar.zst
+K3S_STAMP   := vendor/k3s/$(ARCH)/.fetched-$(K3S_VERSION)
 
-.PHONY: all fetch rootfs image iso iso-info clean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test lima-test-secure
+.PHONY: all fetch rootfs image iso iso-info clean distclean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test lima-test-secure
 
 all: iso
 
-# fetch-k3s.sh already no-ops if both outputs exist; re-run by deleting vendor/k3s.
-$(K3S_BIN) $(K3S_IMAGES) &: scripts/fetch-k3s.sh
+# The stamp carries K3S_VERSION in its name, so a version bump makes it
+# "missing" and triggers a re-fetch (which wipes the old vendor/k3s/$(ARCH)).
+$(K3S_BIN) $(K3S_IMAGES) $(K3S_STAMP) &: scripts/fetch-k3s.sh
 	./scripts/fetch-k3s.sh
 
 $(ROOTFS_TAR): $(K3S_BIN) scripts/build-rootfs.sh
@@ -42,6 +54,10 @@ iso-info: $(ISO)
 
 clean:
 	rm -rf $(BUILD)
+
+# clean + drop fetched k3s artifacts (all arches) — forces a re-download
+distclean: clean
+	rm -rf vendor
 
 clean-iso:
 	rm -f $(ISO)

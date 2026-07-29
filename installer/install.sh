@@ -66,11 +66,16 @@ mount --bind /sys  /mnt/sys
 mount --bind /sys/firmware/efi/efivars /mnt/sys/firmware/efi/efivars 2>/dev/null || true
 
 log "Installing GRUB (Secure Boot signed)..."
+case "$(uname -m)" in
+    x86_64)  GRUB_TARGET=x86_64-efi ;;
+    aarch64) GRUB_TARGET=arm64-efi ;;
+    *) echo "[install] ERROR: unsupported machine $(uname -m)" >&2; exit 1 ;;
+esac
 # No --no-nvram: grub-install registers an "appliance" EFI boot entry and puts
 # it first in BootOrder, so the box boots from disk after install even with
 # the installer medium still attached (firmware prefers removable media).
 chroot /mnt grub-install \
-    --target=x86_64-efi \
+    --target="$GRUB_TARGET" \
     --efi-directory=/boot/efi \
     --bootloader-id=appliance
 chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg

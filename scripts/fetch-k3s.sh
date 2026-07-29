@@ -1,33 +1,45 @@
 #!/bin/bash
 # Downloads the k3s binary and air-gap image tarball for a pinned version.
-# Run this before `make rootfs`. Output lands in vendor/k3s/ which the rootfs
-# build copies into the chroot, and the ISO build picks up images separately.
+# Run this before `make rootfs`. Output lands in vendor/k3s/$ARCH/ which the
+# rootfs build copies into the chroot, and the ISO build picks up images
+# separately.
 #
-# Usage: K3S_VERSION=v1.30.2+k3s1 ./scripts/fetch-k3s.sh
+# Usage: K3S_VERSION=v1.30.2+k3s1 [ARCH=arm64] ./scripts/fetch-k3s.sh
 set -euo pipefail
 
 K3S_VERSION="${K3S_VERSION:?set K3S_VERSION e.g. v1.30.2+k3s1}"
-ARCH=amd64
+ARCH="${ARCH:-$(dpkg --print-architecture)}"
 BASE_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}"
-VENDOR="vendor/k3s"
+VENDOR="vendor/k3s/$ARCH"
 
-mkdir -p "$VENDOR/bin" "$VENDOR/images"
+# k3s release assets carry the arch suffix everywhere except the amd64 binary
+case "$ARCH" in
+    amd64) BIN_ASSET=k3s ;;
+    arm64) BIN_ASSET=k3s-arm64 ;;
+    *) echo "[fetch-k3s] ERROR: unsupported ARCH '$ARCH' (amd64|arm64)" >&2; exit 1 ;;
+esac
 
 log() { echo "[fetch-k3s] $*"; }
 
-if [[ -f "$VENDOR/bin/k3s" && -f "$VENDOR/images/k3s-airgap-images-$ARCH.tar.zst" ]]; then
-    log "Already fetched $K3S_VERSION, skipping. Delete $VENDOR to force re-fetch."
+# Version stamp: skip when this exact version is already fetched; anything
+# else (other version, partial fetch) is wiped and re-fetched.
+STAMP="$VENDOR/.fetched-$K3S_VERSION"
+if [[ -f "$STAMP" ]]; then
+    log "Already fetched $K3S_VERSION ($ARCH), skipping. Delete $VENDOR to force re-fetch."
     exit 0
 fi
 
-log "Version: $K3S_VERSION"
+rm -rf "$VENDOR"
+mkdir -p "$VENDOR/bin" "$VENDOR/images"
+
+log "Version: $K3S_VERSION ($ARCH)"
 
 # Download everything flat into $VENDOR so sha256sum can find files by name
 log "Fetching checksums..."
 curl -fsSL "$BASE_URL/sha256sum-$ARCH.txt" -o "$VENDOR/sha256sum-$ARCH.txt"
 
 log "Fetching k3s binary..."
-curl -fsSL "$BASE_URL/k3s" -o "$VENDOR/k3s"
+curl -fsSL "$BASE_URL/$BIN_ASSET" -o "$VENDOR/$BIN_ASSET"
 
 log "Fetching air-gap images..."
 curl -fsSL "$BASE_URL/k3s-airgap-images-$ARCH.tar.zst" \
@@ -38,9 +50,11 @@ log "Verifying checksums..."
 (cd "$VENDOR" && sha256sum --check --ignore-missing "sha256sum-$ARCH.txt")
 
 # Organise into subdirs for rootfs copy and ISO build
-chmod +x "$VENDOR/k3s"
-mv "$VENDOR/k3s"                                  "$VENDOR/bin/k3s"
+chmod +x "$VENDOR/$BIN_ASSET"
+mv "$VENDOR/$BIN_ASSET"                           "$VENDOR/bin/k3s"
 mv "$VENDOR/k3s-airgap-images-$ARCH.tar.zst"     "$VENDOR/images/"
+
+touch "$STAMP"
 
 log "Done."
 log "  bin/k3s                                   → baked into rootfs at /usr/local/bin/k3s"

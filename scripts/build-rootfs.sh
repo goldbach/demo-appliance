@@ -6,9 +6,17 @@
 set -euo pipefail
 
 BUILD="${BUILD:-build}"
-OUTPUT="${1:-$BUILD/appliance-rootfs.tar}"
+ARCH="${ARCH:-$(dpkg --print-architecture)}"
+OUTPUT="${1:-$BUILD/appliance-rootfs-$ARCH.tar}"
 SUITES="resolute"
-MIRROR="deb http://archive.ubuntu.com/ubuntu/ $SUITES main restricted universe multiverse"
+
+# amd64 lives on archive.ubuntu.com; every other arch on ports.ubuntu.com
+case "$ARCH" in
+    amd64) MIRROR_URL="http://archive.ubuntu.com/ubuntu/" ;;
+    arm64) MIRROR_URL="http://ports.ubuntu.com/ubuntu-ports/" ;;
+    *) echo "[build-rootfs] ERROR: unsupported ARCH '$ARCH' (amd64|arm64)" >&2; exit 1 ;;
+esac
+MIRROR="deb $MIRROR_URL $SUITES main restricted universe multiverse"
 
 PACKAGES=(
     # kernel / boot
@@ -29,7 +37,7 @@ PACKAGES=(
     # container runtime (k3s bundles its own, but needed for image prep)
     containerd
     # bootloader (Secure Boot)
-    grub-efi-amd64-signed shim-signed
+    "grub-efi-${ARCH}-signed" shim-signed
     # tools
     curl wget vim less jq htop lsof strace
     bash-completion psmisc procps util-linux zstd
@@ -45,7 +53,7 @@ mmdebstrap \
     --mode=unshare \
     --skip=check/qemu \
     --variant=minbase \
-    --architectures=amd64 \
+    --architectures="$ARCH" \
     --format=tar \
     --include="${PACKAGES[*]}" \
     --dpkgopt='path-exclude=/usr/share/man/*' \
@@ -58,7 +66,7 @@ mmdebstrap \
     --customize-hook='echo appliance > "$1/etc/hostname"' \
     --customize-hook='mkdir -p "$1/usr/lib/appliance"' \
     --customize-hook='mkdir -p "$1/etc/systemd/system"' \
-    --customize-hook='copy-in vendor/k3s/bin/k3s /usr/local/bin/' \
+    --customize-hook="copy-in vendor/k3s/$ARCH/bin/k3s /usr/local/bin/" \
     --customize-hook='copy-in installer/installer-run.sh /usr/lib/appliance/' \
     --customize-hook='copy-in installer/install.sh /usr/lib/appliance/' \
     --customize-hook='copy-in firstboot/firstboot.sh /usr/lib/appliance/' \

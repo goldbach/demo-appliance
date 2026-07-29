@@ -1,10 +1,10 @@
 # Appliance
 
-Minimal Ubuntu 26.04 (resolute) amd64 appliance with [k3s](https://k3s.io/).
+Minimal Ubuntu 26.04 (resolute) appliance with [k3s](https://k3s.io/), for amd64 and arm64.
 
 ## Prerequisites
 
-**Linux (native amd64):**
+**Linux (native, amd64 or arm64):**
 
 ```bash
 # build deps
@@ -40,6 +40,9 @@ make iso          # full pipeline: fetch → rootfs → image → iso
 make rootfs       # just the rootfs tarball
 ```
 
+Builds target the host architecture by default; override with `make iso ARCH=arm64`
+(cross-arch rootfs builds additionally need qemu-user-static binfmt).
+
 **macOS:**
 
 ```bash
@@ -51,10 +54,10 @@ make lima-shell   # drop into the VM
 
 | Step | Command | Output |
 |------|---------|--------|
-| `fetch` | Downloads k3s binary + airgap images | `vendor/k3s/` |
-| `rootfs` | `mmdebstrap` creates Ubuntu rootfs tarball | `build/appliance-rootfs.tar` |
-| `image` | Packs tarball into ext4 partition image | `build/rootfs-*.raw.zst` |
-| `iso` | Builds Secure Boot installer ISO with GRUB + live-boot | `build/appliance-*.iso` |
+| `fetch` | Downloads k3s binary + airgap images | `vendor/k3s/<arch>/` |
+| `rootfs` | `mmdebstrap` creates Ubuntu rootfs tarball | `build/appliance-rootfs-<arch>.tar` |
+| `image` | Packs tarball into ext4 partition image | `build/rootfs-<arch>.raw.zst` |
+| `iso` | Builds Secure Boot installer ISO with GRUB + live-boot | `build/appliance-<arch>.iso` |
 
 ## Configuration
 

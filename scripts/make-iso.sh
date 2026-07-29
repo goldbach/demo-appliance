@@ -6,29 +6,53 @@
 # installer-run.sh which partitions the target disk and extracts the live
 # squashfs onto it — the squashfs doubles as the install payload.
 #
-# Usage: make-iso.sh <rootfs.tar> <output.iso>
+# UEFI boot works on amd64 and arm64; BIOS (isolinux) is amd64-only.
+#
+# Usage: [ARCH=arm64] make-iso.sh <rootfs.tar> <output.iso>
 set -euo pipefail
 
 ROOTFS_TAR="${1:?missing rootfs.tar}"
 OUT="${2:?missing output iso path}"
+ARCH="${ARCH:-$(dpkg --print-architecture)}"
+
+# EFI naming: amd64 → grubx64/shimx64/BOOTx64, arm64 → grubaa64/shimaa64/BOOTAA64.
+# grub spells its platform with the kernel arch on x86 (x86_64-efi) but the
+# Debian arch on arm (arm64-efi, never aarch64).
+case "$ARCH" in
+    amd64) ARCH_KERNEL="${ARCH_KERNEL:-x86_64}";  EFI=x64;  GRUB_PLATFORM="$ARCH_KERNEL-efi"; SERIAL_TTY=ttyS0 ;;
+    arm64) ARCH_KERNEL="${ARCH_KERNEL:-aarch64}"; EFI=aa64; GRUB_PLATFORM="$ARCH-efi";        SERIAL_TTY=ttyAMA0 ;;
+    *) echo "[make-iso] ERROR: unsupported ARCH '$ARCH' (amd64|arm64)" >&2; exit 1 ;;
+esac
+BOOT_EFI="BOOT${EFI^^}.efi"
+GRUB_EFI="grub${EFI}.efi"
+CONSOLE="console=tty0 console=$SERIAL_TTY,115200"
 
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/make-iso.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 
 ISO_ROOT="$WORK/iso"
-mkdir -p "$ISO_ROOT"/{boot/grub,EFI/BOOT,EFI/ubuntu,live,installer,isolinux}
+mkdir -p "$ISO_ROOT"/{boot/grub,EFI/BOOT,EFI/ubuntu,live,installer}
 
 # --- Bootloader: signed EFI binaries from rootfs ---
+# shim ships as .signed.latest on amd64 but plain .signed on some arches —
+# take whichever the rootfs has (sort puts .latest last).
+SHIM_PATH=$(tar -tf "$ROOTFS_TAR" \
+    | grep -E "^\./usr/lib/shim/shim${EFI}\.efi\.signed(\.latest)?$" \
+    | sort | tail -1)
+[ -n "$SHIM_PATH" ] || { echo "[make-iso] ERROR: no signed shim in rootfs" >&2; exit 1; }
+GRUB_PATH="./usr/lib/grub/$GRUB_PLATFORM-signed/$GRUB_EFI.signed"
 tar -xf "$ROOTFS_TAR" -C "$WORK" --exclude='./dev/*' \
-    "./usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed" \
-    "./usr/lib/shim/shimx64.efi.signed.latest"
-cp "$WORK/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed" "$ISO_ROOT/EFI/BOOT/grubx64.efi"
-cp "$WORK/usr/lib/shim/shimx64.efi.signed.latest"             "$ISO_ROOT/EFI/BOOT/BOOTx64.efi"
+    "$GRUB_PATH" \
+    "$SHIM_PATH"
+cp "$WORK/${GRUB_PATH#./}" "$ISO_ROOT/EFI/BOOT/$GRUB_EFI"
+cp "$WORK/${SHIM_PATH#./}" "$ISO_ROOT/EFI/BOOT/$BOOT_EFI"
 
-# --- BIOS bootloader: isolinux ---
-cp /usr/lib/ISOLINUX/isolinux.bin             "$ISO_ROOT/isolinux/"
-cp /usr/lib/syslinux/modules/bios/ldlinux.c32 "$ISO_ROOT/isolinux/"
-cat > "$ISO_ROOT/isolinux/isolinux.cfg" <<'EOF'
+# --- BIOS bootloader: isolinux (amd64 only — arm64 has no BIOS) ---
+if [ "$ARCH" = amd64 ]; then
+    mkdir -p "$ISO_ROOT/isolinux"
+    cp /usr/lib/ISOLINUX/isolinux.bin             "$ISO_ROOT/isolinux/"
+    cp /usr/lib/syslinux/modules/bios/ldlinux.c32 "$ISO_ROOT/isolinux/"
+    cat > "$ISO_ROOT/isolinux/isolinux.cfg" <<EOF
 SERIAL 0 115200
 DEFAULT install
 PROMPT 0
@@ -36,12 +60,13 @@ TIMEOUT 100
 
 LABEL install
     KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img boot=live console=tty0 console=ttyS0,115200
+    APPEND initrd=/boot/initrd.img boot=live $CONSOLE
 
 LABEL auto
     KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img boot=live appliance.install=auto console=tty0 console=ttyS0,115200
+    APPEND initrd=/boot/initrd.img boot=live appliance.install=auto $CONSOLE
 EOF
+fi
 
 # --- Kernel + initrd (with live-boot hooks baked in by update-initramfs) ---
 # vmlinuz and initrd.img are symlinks — extract the real files
@@ -74,7 +99,7 @@ printf '%s' "$(du -sx --block-size=1 "$SQUASH_ROOT" | cut -f1)" \
 install -m 0600 firstboot/machine.conf.example "$ISO_ROOT/installer/machine.conf"
 
 # --- k3s air-gap images (copied to /data by install.sh) ---
-K3S_IMAGES="vendor/k3s/images"
+K3S_IMAGES="vendor/k3s/$ARCH/images"
 if [ -d "$K3S_IMAGES" ]; then
     mkdir -p "$ISO_ROOT/k3s-images"
     cp "$K3S_IMAGES"/*.tar.zst "$ISO_ROOT/k3s-images/"
@@ -83,13 +108,18 @@ fi
 
 # --- GRUB config ---
 # boot=live tells live-boot's initrd hook to find live/filesystem.squashfs.
-# The signed Ubuntu grubx64.efi has a baked-in prefix of /EFI/ubuntu, so the
-# config must live there. The search line re-roots to the ISO filesystem so
-# kernel/initrd paths resolve even when booted from the ESP (USB/dd boot).
-cat > "$ISO_ROOT/EFI/ubuntu/grub.cfg" <<'EOF'
-serial --unit=0 --speed=115200
+# The signed Ubuntu grub EFI binary has a baked-in prefix of /EFI/ubuntu, so
+# the config must live there. The search line re-roots to the ISO filesystem
+# so kernel/initrd paths resolve even when booted from the ESP (USB/dd boot).
+# grub's `serial` command only knows ioport UARTs — amd64 only.
+GRUB_SERIAL=""
+if [ "$ARCH" = amd64 ]; then
+    GRUB_SERIAL='serial --unit=0 --speed=115200
 terminal_input serial console
-terminal_output serial console
+terminal_output serial console'
+fi
+cat > "$ISO_ROOT/EFI/ubuntu/grub.cfg" <<EOF
+$GRUB_SERIAL
 
 set timeout=10
 set default=0
@@ -97,12 +127,12 @@ set default=0
 search --file --set=root /live/filesystem.squashfs
 
 menuentry "Install Appliance" {
-    linux  /boot/vmlinuz boot=live console=tty0 console=ttyS0,115200
+    linux  /boot/vmlinuz boot=live $CONSOLE
     initrd /boot/initrd.img
 }
 
 menuentry "Install Appliance (automatic, NO confirmation)" {
-    linux  /boot/vmlinuz boot=live appliance.install=auto console=tty0 console=ttyS0,115200
+    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE
     initrd /boot/initrd.img
 }
 EOF
@@ -118,31 +148,45 @@ ESP="$WORK/efi.img"
 dd if=/dev/zero of="$ESP" bs=1M count=16 status=none
 mkfs.fat -F 16 "$ESP" >/dev/null
 mmd -i "$ESP" ::EFI ::EFI/BOOT ::EFI/ubuntu
-mcopy -i "$ESP" "$ISO_ROOT/EFI/BOOT/BOOTx64.efi" ::EFI/BOOT/BOOTx64.efi
-mcopy -i "$ESP" "$ISO_ROOT/EFI/BOOT/grubx64.efi" ::EFI/BOOT/grubx64.efi
+mcopy -i "$ESP" "$ISO_ROOT/EFI/BOOT/$BOOT_EFI" "::EFI/BOOT/$BOOT_EFI"
+mcopy -i "$ESP" "$ISO_ROOT/EFI/BOOT/$GRUB_EFI" "::EFI/BOOT/$GRUB_EFI"
 mcopy -i "$ESP" "$ISO_ROOT/EFI/ubuntu/grub.cfg" ::EFI/ubuntu/grub.cfg
 
 cp "$ESP" "$ISO_ROOT/boot/efi.img"
 
-# El Torito catalog with two entries:
-#   1. isolinux (platform BIOS)  — SeaBIOS / legacy boot, -boot-info-table is
-#      only valid here (it patches the boot file, and would corrupt efi.img)
-#   2. efi.img (platform UEFI, via -e) — no load-size/info-table options
-xorriso -as mkisofs \
-    -o "$OUT" \
-    -V "APPLIANCE" \
-    -R -r -J \
-    -eltorito-boot isolinux/isolinux.bin \
-    -eltorito-catalog isolinux/boot.cat \
-    -no-emul-boot \
-    -boot-load-size 4 \
-    -boot-info-table \
-    -eltorito-alt-boot \
-    -e boot/efi.img \
-    -no-emul-boot \
-    -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
-    -isohybrid-gpt-basdat \
-    -append_partition 2 0xef "$ESP" \
-    "$ISO_ROOT"
+# El Torito catalog:
+#   amd64: isolinux (platform BIOS) + efi.img (platform UEFI, via -e).
+#     -boot-info-table is only valid on the BIOS entry (it patches the boot
+#     file, and would corrupt efi.img); isohybrid MBR makes dd'd USBs boot.
+#   arm64: UEFI entry only — no BIOS, no isolinux, no isohybrid MBR.
+# -append_partition exposes the ESP as a real partition for USB/dd boot.
+XORRISO_ARGS=(
+    -o "$OUT"
+    -V "APPLIANCE"
+    -R -r -J
+)
+if [ "$ARCH" = amd64 ]; then
+    XORRISO_ARGS+=(
+        -eltorito-boot isolinux/isolinux.bin
+        -eltorito-catalog isolinux/boot.cat
+        -no-emul-boot
+        -boot-load-size 4
+        -boot-info-table
+        -eltorito-alt-boot
+    )
+fi
+XORRISO_ARGS+=(
+    -e boot/efi.img
+    -no-emul-boot
+)
+if [ "$ARCH" = amd64 ]; then
+    XORRISO_ARGS+=(
+        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin
+        -isohybrid-gpt-basdat
+    )
+fi
+XORRISO_ARGS+=( -append_partition 2 0xef "$ESP" )
 
-echo "ISO: $OUT"
+xorriso -as mkisofs "${XORRISO_ARGS[@]}" "$ISO_ROOT"
+
+echo "ISO: $OUT ($ARCH)"
