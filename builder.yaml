@@ -14,26 +14,18 @@ memory: "8GiB"
 disk: "40GiB"
 
 mounts:
-  # {{.Dir}} = directory containing this yaml, i.e. the project root on
-  # whoever's machine runs it — keeps the config portable
-  - location: "{{.Dir}}"
-    mountPoint: /work
-    writable: true
-  # same dir at its host path, so plain `limactl shell` doesn't complain
-  # about a missing cwd (limactl mirrors the host cwd into the guest)
-  - location: "{{.Dir}}"
-    mountPoint: "{{.Dir}}"
+  # Host home at the same path inside the guest, writable. Wherever the repo
+  # is cloned under ~, `limactl shell` mirrors the host cwd into the guest
+  # and builds write straight back to the host checkout.
+  - location: "~"
     writable: true
 
 provision:
-  - mode: system
+  # Subordinate id ranges for mmdebstrap --mode=unshare. Runs as the default
+  # user (passwordless sudo) to avoid guessing the username from templates.
+  - mode: user
     script: |
       #!/bin/bash
       set -euo pipefail
-      # single source of truth for build deps; wait for the /work mount,
-      # which may come up after system provisioning starts
-      timeout 120 bash -c 'until [ -x /work/scripts/install-build-deps.sh ]; do sleep 2; done'
-      /work/scripts/install-build-deps.sh
-      # subordinate id ranges for mmdebstrap --mode=unshare
-      grep -q '^{{.User}}:' /etc/subuid || usermod --add-subuids 100000-165535 "{{.User}}"
-      grep -q '^{{.User}}:' /etc/subgid || usermod --add-subgids 100000-165535 "{{.User}}"
+      grep -q "^$(id -un):" /etc/subuid || sudo usermod --add-subuids 100000-165535 "$(id -un)"
+      grep -q "^$(id -un):" /etc/subgid || sudo usermod --add-subgids 100000-165535 "$(id -un)"

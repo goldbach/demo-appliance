@@ -21,21 +21,23 @@ inside it like any Linux box:
 
 ```bash
 brew install lima
-limactl start builder.yaml    # one-time: creates + provisions the VM
+limactl start builder.yaml            # one-time: creates the VM
+limactl shell builder                 # drops you into the same directory
+sudo ./scripts/install-build-deps.sh  # one-time, inside the VM
 ```
 
 The VM (`builder.yaml`) runs Ubuntu 26.04 arm64 on Apple Virtualization with
-Rosetta binfmt for amd64 binaries. Provisioning installs the build deps and
-the subuid/subgid ranges mmdebstrap needs; the repo is mounted at `/work`.
+Rosetta binfmt for amd64 binaries. It mounts your home at the same path
+(clone the repo somewhere under `~`), and provisioning sets up the
+subuid/subgid ranges mmdebstrap needs.
 
 ## Building
 
-On macOS, first shell into the builder VM — everything below runs there
-(or on any Linux box):
+On macOS, first shell into the builder VM from the repo directory —
+everything below runs there (or on any Linux box):
 
 ```bash
 limactl shell builder
-cd /work
 ```
 
 ```bash
@@ -46,14 +48,12 @@ make test-secure      # same with Secure Boot enabled (amd64 only)
 ```
 
 Builds target the host architecture by default — arm64 inside the builder VM.
-Override with `ARCH=`:
+The only supported cross build is amd64 on an arm64 host (Rosetta in the
+builder VM); arm64 images are always built on arm64:
 
 ```bash
 make iso ARCH=amd64   # in the builder VM: cross build via Rosetta
 ```
-
-On native Linux hosts, cross-arch rootfs builds need qemu-user-static binfmt
-instead of Rosetta.
 
 ## Build pipeline
 
