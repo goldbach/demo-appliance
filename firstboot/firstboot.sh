@@ -23,11 +23,13 @@ log "Node role: $ROLE"
 
 mkdir -p /etc/rancher/k3s /data/k3s-images
 
-# Import air-gap images if present on the data partition
+# Stage air-gap images where k3s imports them at startup. With
+# data-dir=/data/k3s that is /data/k3s/agent/images — NOT the default
+# /var/lib/rancher/k3s path (that would land on the per-slot rootfs).
 if compgen -G "$AIRGAP_DIR/*.tar.zst" > /dev/null; then
-    log "Importing air-gap images..."
-    mkdir -p /var/lib/rancher/k3s/agent/images
-    cp "$AIRGAP_DIR"/*.tar.zst /var/lib/rancher/k3s/agent/images/
+    log "Staging air-gap images..."
+    mkdir -p /data/k3s/agent/images
+    cp "$AIRGAP_DIR"/*.tar.zst /data/k3s/agent/images/
 fi
 
 case "$ROLE" in
