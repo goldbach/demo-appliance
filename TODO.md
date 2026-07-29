@@ -153,8 +153,9 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
 
 ### Image build nits
 
-- `make-image.sh` labels every image `rootfs-a` — drop the `-L` or use a
-  neutral name; confusing once it lands in slot B.
+- Fixed (2026-07-29): `make-image.sh` labeled every image `rootfs-a` — now
+  uses the neutral `rootfs`; slot identity is the GPT partition label, so an
+  image landing in slot B no longer claims to be A.
 - `resize2fs -M` shrinks the image but root is rw for now → add
   `x-systemd.growfs` to the root fstab entry (or fixed-size images later
   when root goes ro).

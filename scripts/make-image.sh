@@ -18,10 +18,13 @@ echo "Extracting rootfs..."
 tar -xf "$SRC" -C "$ROOTFS_DIR" --exclude='./dev/*'
 
 # Create ext4 image and populate from directory (no mount needed)
+# Neutral fs label: the same image lands in slot A at install time and in
+# slot B via sysupdate — slot identity lives in the GPT partition labels
+# (rootfs-a / rootfs-b), not in the filesystem.
 IMG="$TMPDIR/rootfs.raw"
 echo "Creating ext4 image..."
 truncate -s "${SIZE}M" "$IMG"
-mkfs.ext4 -L rootfs-a -d "$ROOTFS_DIR" "$IMG"
+mkfs.ext4 -L rootfs -d "$ROOTFS_DIR" "$IMG"
 
 e2fsck -f "$IMG" || true
 resize2fs -M "$IMG"  # shrink to minimum

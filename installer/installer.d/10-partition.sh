@@ -1,7 +1,8 @@
 #!/bin/bash
 # Install step: partition the target disk and format EFI, rootfs-b and data.
 # rootfs-a is not formatted — the image written by 20-rootfs.sh carries the
-# filesystem (and its rootfs-a label).
+# filesystem (with its neutral "rootfs" fs label; slot identity is the GPT
+# partition label).
 set -euo pipefail
 
 # Sizes in MiB
