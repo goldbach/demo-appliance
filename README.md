@@ -14,41 +14,46 @@ sudo ./scripts/install-build-deps.sh
 sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER
 ```
 
-**macOS (ARM64 via Lima):**
+**macOS (Apple Silicon via Lima):**
+
+Builds never run on the Mac itself — spin up the builder VM once, then work
+inside it like any Linux box:
 
 ```bash
-brew install limactl make
+brew install lima
+limactl start builder.yaml    # one-time: creates + provisions the VM
 ```
 
-The Makefile uses a GNU Make 4.3+ feature (grouped targets, `&:`), which macOS's
-built-in `/usr/bin/make` (3.81) can't parse — even for `lima-*` targets, since make
-must parse the whole file before running anything. Put Homebrew's `make` ahead of
-the system one on `PATH`:
-
-```bash
-export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
-```
-
-The Lima VM (`builder.yaml`) runs Ubuntu 26.04 on Apple Virtualization with Rosetta for amd64 translation. Dependencies are provisioned automatically.
+The VM (`builder.yaml`) runs Ubuntu 26.04 arm64 on Apple Virtualization with
+Rosetta binfmt for amd64 binaries. Provisioning installs the build deps and
+the subuid/subgid ranges mmdebstrap needs; the repo is mounted at `/work`.
 
 ## Building
 
-**Linux:**
+On macOS, first shell into the builder VM — everything below runs there
+(or on any Linux box):
 
 ```bash
-make iso          # full pipeline: fetch → rootfs → image → iso
-make rootfs       # just the rootfs tarball
+limactl shell builder
+cd /work
 ```
-
-Builds target the host architecture by default; override with `make iso ARCH=arm64`
-(cross-arch rootfs builds additionally need qemu-user-static binfmt).
-
-**macOS:**
 
 ```bash
-make lima-iso     # full pipeline inside Lima VM
-make lima-shell   # drop into the VM
+make iso              # full pipeline: fetch → rootfs → image → iso
+make rootfs           # just the rootfs tarball
+make test             # boot the ISO in QEMU (UEFI)
+make test-secure      # same with Secure Boot enabled (amd64 only)
 ```
+
+Builds target the host architecture by default — arm64 inside the builder VM.
+Override with `ARCH=`:
+
+```bash
+make iso ARCH=amd64   # in the builder VM: cross build via Rosetta
+```
+
+On native Linux hosts, cross-arch rootfs builds need qemu-user-static binfmt
+instead of Rosetta.
 
 ## Build pipeline
 

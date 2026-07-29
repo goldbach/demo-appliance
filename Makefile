@@ -24,7 +24,7 @@ K3S_BIN     := vendor/k3s/$(ARCH)/bin/k3s
 K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH).tar.zst
 K3S_STAMP   := vendor/k3s/$(ARCH)/.fetched-$(K3S_VERSION)
 
-.PHONY: all fetch rootfs image iso iso-info clean distclean clean-iso clean-rootfs lima-iso lima-image lima-rootfs lima-shell lima-iso-info lima-start lima-test lima-test-secure
+.PHONY: all fetch rootfs image iso iso-info clean distclean clean-iso clean-rootfs test test-secure test-deps
 
 all: iso
 
@@ -65,54 +65,55 @@ clean-iso:
 clean-rootfs:
 	rm -f $(ROOTFS_TAR)
 
-# --- Lima targets (ARM64 VM with Rosetta for amd64) ---
+# --- QEMU boot test (on macOS: run inside the builder VM, see README) ---
+# accel=kvm:tcg picks KVM when the host arch matches, emulation otherwise.
 
-LIMA := limactl
-LIMA_NAME := builder
+ifeq ($(ARCH),amd64)
+QEMU_PKGS  := qemu-system-x86 ovmf
+QEMU       := qemu-system-x86_64
+QEMU_OPTS  := -machine q35,accel=kvm:tcg
+QEMU_CDROM := -boot d -drive file=$(ISO),media=cdrom,if=ide
+FW_CODE    := /usr/share/OVMF/OVMF_CODE_4M.fd
+FW_VARS    := /usr/share/OVMF/OVMF_VARS_4M.fd
+else
+QEMU_PKGS  := qemu-system-arm qemu-efi-aarch64
+QEMU       := qemu-system-aarch64
+QEMU_OPTS  := -machine virt,accel=kvm:tcg -cpu max
+# the virt machine has no IDE — attach the ISO via virtio-scsi
+QEMU_CDROM := -device virtio-scsi-pci \
+	-drive file=$(ISO),media=cdrom,if=none,id=cd0 \
+	-device scsi-cd,drive=cd0,bootindex=0
+FW_CODE    := /usr/share/AAVMF/AAVMF_CODE.fd
+FW_VARS    := /usr/share/AAVMF/AAVMF_VARS.fd
+endif
 
-lima-iso: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso VERSION=$(VERSION)
+test-deps:
+	sudo apt-get install -y -qq $(QEMU_PKGS) 2>/dev/null
 
-lima-image: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make image VERSION=$(VERSION)
+test: $(ISO) test-deps
+	rm -f $(BUILD)/test-disk.raw && truncate -s 20G $(BUILD)/test-disk.raw
+	cp -f $(FW_VARS) $(BUILD)/test-vars.fd
+	$(QEMU) $(QEMU_OPTS) -m 4096 -nographic \
+		-serial mon:stdio \
+		$(QEMU_CDROM) \
+		-drive file=$(BUILD)/test-disk.raw,format=raw,if=virtio \
+		-drive if=pflash,format=raw,readonly=on,file=$(FW_CODE) \
+		-drive if=pflash,format=raw,file=$(BUILD)/test-vars.fd
 
-lima-rootfs: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make rootfs
-
-lima-shell: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME)
-
-lima-iso-info: | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- make iso-info VERSION=$(VERSION)
-
-lima-test: lima-iso | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- bash -c '\
-		sudo apt-get install -y -qq qemu-system-x86 ovmf 2>/dev/null && \
-		rm -f build/test-disk.raw && truncate -s 20G build/test-disk.raw && \
-		cp -f /usr/share/OVMF/OVMF_VARS_4M.fd build/OVMF_VARS.fd && \
-		qemu-system-x86_64 -machine q35 -m 4096 -nographic \
-			-serial mon:stdio \
-			-boot d \
-			-drive file=build/appliance.iso,media=cdrom,if=ide \
-			-drive file=build/test-disk.raw,format=raw,if=virtio \
-			-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
-			-drive if=pflash,format=raw,file=build/OVMF_VARS.fd'
-
-# Same as lima-test, but with Secure Boot enabled (secboot firmware +
-# Microsoft keys pre-enrolled in the VARS). Verify with `bootctl status`.
-lima-test-secure: lima-iso | lima-start
-	$(LIMA) shell --workdir /work $(LIMA_NAME) -- bash -c '\
-		sudo apt-get install -y -qq qemu-system-x86 ovmf 2>/dev/null && \
-		rm -f build/test-disk.raw && truncate -s 20G build/test-disk.raw && \
-		cp -f /usr/share/OVMF/OVMF_VARS_4M.ms.fd build/OVMF_VARS.secure.fd && \
-		qemu-system-x86_64 -machine q35,smm=on -m 4096 -nographic \
-			-global driver=cfi.pflash01,property=secure,value=on \
-			-serial mon:stdio \
-			-boot d \
-			-drive file=build/appliance.iso,media=cdrom,if=ide \
-			-drive file=build/test-disk.raw,format=raw,if=virtio \
-			-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
-			-drive if=pflash,format=raw,file=build/OVMF_VARS.secure.fd'
-
-lima-start:
-	$(LIMA) start builder --tty=false 2>/dev/null || $(LIMA) start builder.yaml --tty=false 2>/dev/null || true
+# Same as test, but with Secure Boot enabled (secboot firmware + Microsoft
+# keys pre-enrolled in the VARS). Verify with `bootctl status`.
+# amd64 only: Ubuntu ships no MS-enrolled AAVMF vars for arm64.
+test-secure: $(ISO) test-deps
+ifeq ($(ARCH),amd64)
+	rm -f $(BUILD)/test-disk.raw && truncate -s 20G $(BUILD)/test-disk.raw
+	cp -f /usr/share/OVMF/OVMF_VARS_4M.ms.fd $(BUILD)/test-vars.secure.fd
+	$(QEMU) -machine q35,smm=on,accel=kvm:tcg -m 4096 -nographic \
+		-global driver=cfi.pflash01,property=secure,value=on \
+		-serial mon:stdio \
+		$(QEMU_CDROM) \
+		-drive file=$(BUILD)/test-disk.raw,format=raw,if=virtio \
+		-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+		-drive if=pflash,format=raw,file=$(BUILD)/test-vars.secure.fd
+else
+	$(error test-secure requires ARCH=amd64)
+endif

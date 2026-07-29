@@ -34,3 +34,6 @@ provision:
       # which may come up after system provisioning starts
       timeout 120 bash -c 'until [ -x /work/scripts/install-build-deps.sh ]; do sleep 2; done'
       /work/scripts/install-build-deps.sh
+      # subordinate id ranges for mmdebstrap --mode=unshare
+      grep -q '^{{.User}}:' /etc/subuid || usermod --add-subuids 100000-165535 "{{.User}}"
+      grep -q '^{{.User}}:' /etc/subgid || usermod --add-subgids 100000-165535 "{{.User}}"
