@@ -1,70 +1,31 @@
 #!/bin/bash
-# Runs once on first boot after install. Reads /etc/appliance/machine.conf,
-# configures k3s for the correct role, then disables itself.
+# Runs once on first boot after install. Entry point for the first-boot
+# steps in /usr/lib/appliance/firstboot.d/ (executed in glob order).
+# Reads /etc/appliance/machine.conf, exports it for the steps, then
+# disables itself.
 set -euo pipefail
 
 CONF=/etc/appliance/machine.conf
-K3S_CONFIG=/etc/rancher/k3s/config.yaml
-AIRGAP_DIR=/data/k3s-images
+STEPS_DIR=/usr/lib/appliance/firstboot.d
 
 log() { echo "[firstboot] $*"; }
 
 if [[ ! -f "$CONF" ]]; then
-    log "ERROR: $CONF not found — cannot configure node role"
+    log "ERROR: $CONF not found — cannot configure node"
     exit 1
 fi
 
+# Export config (ROLE, CLUSTER_INIT, SERVER_URL, CLUSTER_TOKEN, ...)
+# for the step scripts.
+set -a
 # shellcheck source=/dev/null
 source "$CONF"
-# Expected variables: ROLE (server|agent), CLUSTER_INIT (true|false),
-#                     SERVER_URL, CLUSTER_TOKEN
+set +a
 
-log "Node role: $ROLE"
-
-mkdir -p /etc/rancher/k3s /data/k3s-images
-
-# Stage air-gap images where k3s imports them at startup. With
-# data-dir=/data/k3s that is /data/k3s/agent/images — NOT the default
-# /var/lib/rancher/k3s path (that would land on the per-slot rootfs).
-if compgen -G "$AIRGAP_DIR/*.tar.zst" > /dev/null; then
-    log "Staging air-gap images..."
-    mkdir -p /data/k3s/agent/images
-    cp "$AIRGAP_DIR"/*.tar.zst /data/k3s/agent/images/
-fi
-
-case "$ROLE" in
-    server)
-        if [[ "${CLUSTER_INIT:-false}" == "true" ]]; then
-            log "Bootstrapping new cluster..."
-            cat > "$K3S_CONFIG" <<EOF
-cluster-init: true
-token: "${CLUSTER_TOKEN}"
-data-dir: /data/k3s
-EOF
-        else
-            log "Joining existing cluster as server..."
-            cat > "$K3S_CONFIG" <<EOF
-server: "${SERVER_URL}"
-token: "${CLUSTER_TOKEN}"
-data-dir: /data/k3s
-EOF
-        fi
-        systemctl enable --now k3s-server.service
-        ;;
-    agent)
-        log "Joining cluster as agent..."
-        cat > "$K3S_CONFIG" <<EOF
-server: "${SERVER_URL}"
-token: "${CLUSTER_TOKEN}"
-data-dir: /data/k3s
-EOF
-        systemctl enable --now k3s-agent.service
-        ;;
-    *)
-        log "ERROR: unknown role '$ROLE' in $CONF"
-        exit 1
-        ;;
-esac
+for step in "$STEPS_DIR"/*.sh; do
+    log "Running step: $(basename "$step")"
+    bash "$step"
+done
 
 log "Disabling firstboot unit..."
 systemctl disable firstboot.service
