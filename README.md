@@ -21,7 +21,7 @@ inside it like any Linux box:
 
 ```bash
 brew install lima
-limactl start builder.yaml            # one-time: creates the VM
+limactl start --tty=false builder.yaml   # one-time: creates the VM
 limactl shell builder                 # drops you into the same directory
 sudo ./scripts/install-build-deps.sh  # one-time, inside the VM
 ```
