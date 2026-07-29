@@ -13,6 +13,12 @@ cpus: 4
 memory: "8GiB"
 disk: "40GiB"
 
+# Lima installs rootless containerd + nerdctl by default — the build
+# pipeline doesn't need any of it
+containerd:
+  system: false
+  user: false
+
 mounts:
   # Host home at the same path inside the guest, writable. Wherever the repo
   # is cloned under ~, `limactl shell` mirrors the host cwd into the guest

@@ -22,6 +22,9 @@ inside it like any Linux box:
 ```bash
 brew install lima
 limactl start --tty=false builder.yaml   # one-time: creates the VM
+                                         # (takes minutes on first run —
+                                         #  image download + provisioning —
+                                         #  then exits; VM keeps running)
 limactl shell builder                 # drops you into the same directory
 sudo ./scripts/install-build-deps.sh  # one-time, inside the VM
 ```
