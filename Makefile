@@ -91,6 +91,8 @@ ifeq ($(ARCH),amd64)
 QEMU_PKGS  := qemu-system-x86 ovmf
 QEMU       := qemu-system-x86_64
 QEMU_OPTS  := -machine q35,accel=kvm:tcg
+# graphical window — matches the ISO's amd64 console (tty0 last)
+QEMU_UI    :=
 QEMU_CDROM := -boot d -drive file=$(ISO),media=cdrom,if=ide
 FW_CODE    := /usr/share/OVMF/OVMF_CODE_4M.fd
 FW_VARS    := /usr/share/OVMF/OVMF_VARS_4M.fd
@@ -98,6 +100,8 @@ else
 QEMU_PKGS  := qemu-system-arm qemu-efi-aarch64
 QEMU       := qemu-system-aarch64
 QEMU_OPTS  := -machine virt,accel=kvm:tcg -cpu max
+# serial on stdio — the arm64 builder VM is headless
+QEMU_UI    := -nographic -serial mon:stdio
 # the virt machine has no IDE — attach the ISO via virtio-scsi
 QEMU_CDROM := -device virtio-scsi-pci \
 	-drive file=$(ISO),media=cdrom,if=none,id=cd0 \
@@ -113,8 +117,7 @@ test-deps:
 test: $(ISO) test-deps
 	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
 	cp -f $(FW_VARS) $(BUILD)/test-vars.fd
-	$(QEMU) $(QEMU_OPTS) -m 4096 -nographic \
-		-serial mon:stdio \
+	$(QEMU) $(QEMU_OPTS) -m 4096 $(QEMU_UI) \
 		$(QEMU_CDROM) \
 		-drive file=$(BUILD)/test-disk.raw,format=raw,if=virtio \
 		-drive if=pflash,format=raw,readonly=on,file=$(FW_CODE) \
@@ -127,9 +130,8 @@ test-secure: $(ISO) test-deps
 ifeq ($(ARCH),amd64)
 	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
 	cp -f /usr/share/OVMF/OVMF_VARS_4M.ms.fd $(BUILD)/test-vars.secure.fd
-	$(QEMU) -machine q35,smm=on,accel=kvm:tcg -m 4096 -nographic \
+	$(QEMU) -machine q35,smm=on,accel=kvm:tcg -m 4096 $(QEMU_UI) \
 		-global driver=cfi.pflash01,property=secure,value=on \
-		-serial mon:stdio \
 		$(QEMU_CDROM) \
 		-drive file=$(BUILD)/test-disk.raw,format=raw,if=virtio \
 		-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \

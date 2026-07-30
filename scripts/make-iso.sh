@@ -30,7 +30,12 @@ case "$ARCH" in
 esac
 BOOT_EFI="BOOT${EFI^^}.efi"
 GRUB_EFI="grub${EFI}.efi"
-CONSOLE="console=tty0 console=$SERIAL_TTY,115200"
+# The LAST console= owns /dev/console, where installer.service runs.
+# amd64: display (qemu window / VGA); arm64: serial (headless builder VM).
+case "$ARCH" in
+    amd64) CONSOLE="console=$SERIAL_TTY,115200 console=tty0" ;;
+    arm64) CONSOLE="console=tty0 console=$SERIAL_TTY,115200" ;;
+esac
 
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/make-iso.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT

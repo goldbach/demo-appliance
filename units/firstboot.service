@@ -10,8 +10,9 @@ Type=oneshot
 ExecStart=/usr/lib/appliance/firstboot.sh
 ExecStartPost=/bin/touch /var/lib/appliance/firstboot-done
 RemainAfterExit=yes
-StandardOutput=journal
-StandardError=journal
+# journal for the record, console so the operator sees progress on first boot
+StandardOutput=journal+console
+StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target
