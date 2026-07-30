@@ -1,0 +1,35 @@
+name: Rootfs
+
+# Proves the unprivileged mmdebstrap --mode=unshare build works on GitHub
+# runners, not just in the Lima builder VM. Deliberately NOT run via sudo —
+# root would sidestep the user-namespace path this exists to validate.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rootfs:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: sudo ./scripts/install-build-deps.sh
+
+      # Same setup builder.yaml provisions in Lima: Ubuntu 24.04 blocks
+      # unprivileged user namespaces via AppArmor by default, and
+      # --mode=unshare needs subordinate id ranges for the build user.
+      - name: Allow unprivileged user namespaces
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          grep -q "^$(id -un):" /etc/subuid || sudo usermod --add-subuids 100000-165535 "$(id -un)"
+          grep -q "^$(id -un):" /etc/subgid || sudo usermod --add-subgids 100000-165535 "$(id -un)"
+
+      - name: Build payload rootfs (unprivileged)
+        run: make rootfs

@@ -16,6 +16,10 @@ export K3S_VERSION ARCH ARCH_KERNEL
 
 # --- File targets (make skips when output exists and is newer than deps) ---
 
+# A failed recipe must not leave a partial output that later runs treat as
+# up to date (e.g. a truncated tarball from an interrupted mmdebstrap).
+.DELETE_ON_ERROR:
+
 ROOTFS_TAR  := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
 LIVE_TAR    := $(BUILD)/live-rootfs-$(ARCH).tar.zst
 ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
