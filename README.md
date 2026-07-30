@@ -50,6 +50,9 @@ make live             # just the micro live (installer) rootfs tarball
 make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
 make boot-headless    # same on serial/stdio — on amd64 pick the
                       # "serial console" grub entry
+PROXMOX_HOST=<host> make boot-proxmox
+                      # throwaway Secure Boot install-test VM on a Proxmox
+                      # host (amd64; destroys the VM when you hit Enter)
 ```
 
 Builds target the host architecture by default — arm64 inside the builder VM.

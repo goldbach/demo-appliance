@@ -32,7 +32,7 @@ ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
                  firstboot/firstboot.sh $(wildcard firstboot/firstboot.d/*.sh) \
                  firstboot/machine.conf.example
 
-.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-headless
+.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-headless boot-proxmox
 
 all: iso
 
@@ -132,3 +132,14 @@ boot: $(ISO)
 boot-headless: QEMU_UI := -nographic -serial mon:stdio
 boot-headless: $(ISO)
 	$(QEMU_BOOT)
+
+# Throwaway Secure Boot install-test VM on a Proxmox host (amd64 only —
+# Proxmox runs x86). Needs PROXMOX_HOST in the env and root ssh access.
+# Uploads the ISO, boots it with pre-enrolled MS keys, and destroys the VM
+# when you hit Enter after testing. Interactive dev tool, not a CI gate.
+boot-proxmox: $(ISO)
+ifeq ($(ARCH),amd64)
+	scripts/boot-proxmox.sh $(ISO)
+else
+	$(error boot-proxmox requires ARCH=amd64)
+endif
