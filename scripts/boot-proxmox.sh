@@ -3,13 +3,12 @@
 # boot-proxmox.sh — install-test the appliance ISO in a throwaway Proxmox VM
 # under Secure Boot.
 #
-# Creates a VM on $PROXMOX_HOST (driven via ssh root@host + qm), boots it
-# from the uploaded ISO and leaves the interactive install (disk confirm) to
-# you in the Proxmox web console. The in-guest reboot at the end of the
-# install stays inside the same VM, so the installed system then boots from
-# disk under full Secure Boot enforcement — verifying the target OS boot
-# chain, not just the ISO's. When you're done, press Enter here and the VM
-# is destroyed again.
+# Creates a VM on $PROXMOX_HOST (driven via ssh root@host + qm) and boots it
+# from the uploaded ISO. The install is unattended — watch it in the Proxmox
+# web console. The in-guest reboot at the end of the install stays inside
+# the same VM, so the installed system then boots from disk under full
+# Secure Boot enforcement — verifying the target OS boot chain, not just the
+# ISO's. When you're done, press Enter here and the VM is destroyed again.
 #
 # What enforces Secure Boot in the VM config:
 #   - machine q35 + bios ovmf: Proxmox runs the SMM-enabled OVMF build with
@@ -121,8 +120,8 @@ pve "qm create $VMID \
 pve "qm start $VMID"
 
 echo ""
-echo "VM $VMID is booting the ISO under Secure Boot."
-echo "Open the console to drive the interactive install steps:"
+echo "VM $VMID is booting the ISO under Secure Boot (unattended install)."
+echo "Watch it in the console:"
 echo ""
 echo "  https://$PROXMOX_HOST:8006/#v1:0:=qemu/$VMID"
 echo ""

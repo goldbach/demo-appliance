@@ -41,10 +41,6 @@ MACHINE_CONF="$MEDIUM_MOUNT/installer/machine.conf"
 [ -f "$ROOTFS_IMAGE" ] || die "rootfs image missing on installer medium"
 log "Medium: $MEDIUM_DEV"
 
-# Selected via the boot menu entry: skip all confirmation prompts
-AUTO=no
-grep -q "appliance.install=auto" /proc/cmdline && AUTO=yes
-
 echo ""
 echo "======================================================"
 echo "  Appliance Installer"
@@ -67,39 +63,21 @@ if [ ${#DISKS[@]} -eq 0 ]; then
     die "no suitable target disk found"
 fi
 
-if [ ${#DISKS[@]} -eq 1 ]; then
-    DISK="${DISKS[0]}"
-    log "Target disk: $DISK (auto-detected)"
-elif [ "$AUTO" = yes ]; then
-    # never guess which disk to wipe
-    die "appliance.install=auto needs exactly one candidate disk, found ${#DISKS[@]}"
-else
-    echo "Available disks:"
-    for i in "${!DISKS[@]}"; do
-        name=$(basename "${DISKS[$i]}")
-        size_sectors=$(cat "/sys/block/$name/size" 2>/dev/null || echo 0)
-        size_gib=$(awk "BEGIN { printf \"%.0f\", $size_sectors * 512 / 1073741824 }")
-        echo "  $((i+1)). ${DISKS[$i]}  (${size_gib} GiB)"
-    done
-    echo ""
-    read -r -p "Select disk number [1]: " sel
-    sel="${sel:-1}"
-    DISK="${DISKS[$((sel-1))]}"
+# Unattended: exactly one candidate disk or bail — never guess what to wipe
+if [ ${#DISKS[@]} -gt 1 ]; then
+    die "need exactly one candidate disk, found ${#DISKS[@]}: ${DISKS[*]}"
 fi
+DISK="${DISKS[0]}"
 
 echo ""
-log "Install target : $DISK"
+log "Install target : $DISK (auto-detected)"
 log "Rootfs image   : $ROOTFS_IMAGE"
 echo ""
 echo "WARNING: ALL DATA ON $DISK WILL BE ERASED."
 echo ""
-if [ "$AUTO" = yes ]; then
-    log "appliance.install=auto — proceeding without confirmation"
-else
-    read -r -p "Type 'yes' to continue: " confirm
-    [ "$confirm" = "yes" ] || { echo "Aborted."; exit 1; }
-fi
-echo ""
+# Unattended by design — the sleep is only a Ctrl-C window for a watching dev
+log "Starting in 5 seconds..."
+sleep 5
 
 export ROOTFS_IMAGE
 export MACHINE_CONF

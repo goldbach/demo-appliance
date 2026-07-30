@@ -75,10 +75,6 @@ TIMEOUT 100
 LABEL install
     KERNEL /boot/vmlinuz
     APPEND initrd=/boot/initrd.img boot=live $CONSOLE_DEFAULT
-
-LABEL auto
-    KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img boot=live appliance.install=auto $CONSOLE_DEFAULT
 EOF
 fi
 
@@ -147,13 +143,8 @@ set default=0
 
 search --file --set=root /live/filesystem.squashfs
 
-menuentry "Install Appliance" {
+menuentry "Install Appliance (unattended — ERASES the target disk)" {
     linux  /boot/vmlinuz boot=live $CONSOLE_DEFAULT
-    initrd /boot/initrd.img
-}
-
-menuentry "Install Appliance (automatic, NO confirmation)" {
-    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE_DEFAULT
     initrd /boot/initrd.img
 }
 EOF
@@ -162,13 +153,8 @@ EOF
 if [ "$ARCH" = amd64 ]; then
 cat <<EOF
 
-menuentry "Install Appliance (serial console)" {
+menuentry "Install Appliance (serial console, unattended)" {
     linux  /boot/vmlinuz boot=live $CONSOLE_SERIAL
-    initrd /boot/initrd.img
-}
-
-menuentry "Install Appliance (serial console, automatic, NO confirmation)" {
-    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE_SERIAL
     initrd /boot/initrd.img
 }
 EOF
