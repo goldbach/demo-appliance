@@ -1,4 +1,8 @@
 vmType: vz
+# /dev/kvm inside the guest (Apple VZ nested virtualization, M3+/macOS 15+):
+# `make boot*` runs QEMU under KVM instead of slow TCG emulation.
+# arm64 guests only — an amd64 guest can't use arm64 KVM (still TCG).
+nestedVirtualization: true
 vmOpts:
   vz:
     rosetta:
