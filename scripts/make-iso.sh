@@ -50,9 +50,11 @@ mkdir -p "$ISO_ROOT"/{boot/grub,EFI/BOOT,EFI/ubuntu,live,installer}
 # --- Bootloader: signed EFI binaries from the live rootfs ---
 # shim ships as .signed.latest on amd64 but plain .signed on some arches —
 # take whichever the tarball has (sort puts .latest last).
+# `|| true`: no match must reach the guard below, not die silently here
+# (set -e + pipefail would kill the script at this assignment)
 SHIM_PATH=$(tar -tf "$LIVE_TAR" \
     | grep -E "^\./usr/lib/shim/shim${EFI}\.efi\.signed(\.latest)?$" \
-    | sort | tail -1)
+    | sort | tail -1 || true)
 [ -n "$SHIM_PATH" ] || { echo "[make-iso] ERROR: no signed shim in live rootfs" >&2; exit 1; }
 GRUB_PATH="./usr/lib/grub/$GRUB_PLATFORM-signed/$GRUB_EFI.signed"
 tar -xf "$LIVE_TAR" -C "$WORK" --exclude='./dev/*' \
