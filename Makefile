@@ -32,7 +32,7 @@ ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
                  firstboot/firstboot.sh $(wildcard firstboot/firstboot.d/*.sh) \
                  firstboot/machine.conf.example
 
-.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-deps
+.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-headless boot-deps
 
 all: iso
 
@@ -118,7 +118,7 @@ boot-deps:
 	sudo apt-get install -y -qq $(QEMU_PKGS) 2>/dev/null
 
 # 32G: 512M EFI + 2x 10G A/B slots + ~11G data
-boot: $(ISO) boot-deps
+define QEMU_BOOT
 	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
 	cp -f $(FW_VARS) $(BUILD)/test-vars.fd
 	$(QEMU) $(QEMU_OPTS) -m 4096 $(QEMU_UI) \
@@ -126,3 +126,14 @@ boot: $(ISO) boot-deps
 		-drive file=$(BUILD)/test-disk.raw,format=raw,if=virtio \
 		-drive if=pflash,format=raw,readonly=on,file=$(FW_CODE) \
 		-drive if=pflash,format=raw,file=$(BUILD)/test-vars.fd
+endef
+
+boot: $(ISO) boot-deps
+	$(QEMU_BOOT)
+
+# Serial console on stdio, no window. On amd64 pick the "serial console"
+# entry in the grub menu (the menu shows on serial too); arm64 is
+# serial-primary already.
+boot-headless: QEMU_UI := -nographic -serial mon:stdio
+boot-headless: $(ISO) boot-deps
+	$(QEMU_BOOT)

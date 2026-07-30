@@ -48,6 +48,8 @@ make iso              # full pipeline: fetch → rootfs + live → image → iso
 make rootfs           # just the payload rootfs tarball
 make live             # just the micro live (installer) rootfs tarball
 make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
+make boot-headless    # same on serial/stdio — on amd64 pick the
+                      # "serial console" grub entry
 ```
 
 Builds target the host architecture by default — arm64 inside the builder VM.

@@ -30,11 +30,15 @@ case "$ARCH" in
 esac
 BOOT_EFI="BOOT${EFI^^}.efi"
 GRUB_EFI="grub${EFI}.efi"
-# The LAST console= owns /dev/console, where installer.service runs.
-# amd64: display (qemu window / VGA); arm64: serial (headless builder VM).
+# The LAST console= owns /dev/console, where the interactive installer runs;
+# the kernel mirrors boot messages to ALL listed consoles. Both orderings
+# ship as separate menu entries: display-primary (amd64 default) and
+# serial-primary (headless; arm64 default — the builder VM has no display).
+CONSOLE_DISPLAY="console=$SERIAL_TTY,115200 console=tty0"
+CONSOLE_SERIAL="console=tty0 console=$SERIAL_TTY,115200"
 case "$ARCH" in
-    amd64) CONSOLE="console=$SERIAL_TTY,115200 console=tty0" ;;
-    arm64) CONSOLE="console=tty0 console=$SERIAL_TTY,115200" ;;
+    amd64) CONSOLE_DEFAULT="$CONSOLE_DISPLAY" ;;
+    arm64) CONSOLE_DEFAULT="$CONSOLE_SERIAL" ;;
 esac
 
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/make-iso.XXXXXX")
@@ -70,11 +74,11 @@ TIMEOUT 100
 
 LABEL install
     KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img boot=live $CONSOLE
+    APPEND initrd=/boot/initrd.img boot=live $CONSOLE_DEFAULT
 
 LABEL auto
     KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img boot=live appliance.install=auto $CONSOLE
+    APPEND initrd=/boot/initrd.img boot=live appliance.install=auto $CONSOLE_DEFAULT
 EOF
 fi
 
@@ -134,7 +138,8 @@ if [ "$ARCH" = amd64 ]; then
 terminal_input serial console
 terminal_output serial console'
 fi
-cat > "$ISO_ROOT/EFI/ubuntu/grub.cfg" <<EOF
+{
+cat <<EOF
 $GRUB_SERIAL
 
 set timeout=10
@@ -143,15 +148,32 @@ set default=0
 search --file --set=root /live/filesystem.squashfs
 
 menuentry "Install Appliance" {
-    linux  /boot/vmlinuz boot=live $CONSOLE
+    linux  /boot/vmlinuz boot=live $CONSOLE_DEFAULT
     initrd /boot/initrd.img
 }
 
 menuentry "Install Appliance (automatic, NO confirmation)" {
-    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE
+    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE_DEFAULT
     initrd /boot/initrd.img
 }
 EOF
+# amd64 defaults to the display — add serial-primary entries for headless
+# boxes (the grub menu itself is on both terminals, see GRUB_SERIAL)
+if [ "$ARCH" = amd64 ]; then
+cat <<EOF
+
+menuentry "Install Appliance (serial console)" {
+    linux  /boot/vmlinuz boot=live $CONSOLE_SERIAL
+    initrd /boot/initrd.img
+}
+
+menuentry "Install Appliance (serial console, automatic, NO confirmation)" {
+    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE_SERIAL
+    initrd /boot/initrd.img
+}
+EOF
+fi
+} > "$ISO_ROOT/EFI/ubuntu/grub.cfg"
 cp "$ISO_ROOT/EFI/ubuntu/grub.cfg" "$ISO_ROOT/boot/grub/grub.cfg"
 
 # --- Build ISO ---
