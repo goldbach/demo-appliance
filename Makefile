@@ -32,7 +32,7 @@ ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
                  firstboot/firstboot.sh $(wildcard firstboot/firstboot.d/*.sh) \
                  firstboot/machine.conf.example
 
-.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-headless boot-deps
+.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-headless
 
 all: iso
 
@@ -88,7 +88,6 @@ clean-rootfs:
 # accel=kvm:tcg picks KVM when the host arch matches, emulation otherwise.
 
 ifeq ($(ARCH),amd64)
-QEMU_PKGS  := qemu-system-x86 ovmf
 QEMU       := qemu-system-x86_64
 # Secure Boot by default: smm + secure pflash, secboot firmware, Microsoft
 # keys pre-enrolled in the VARS. Verify in the guest with `bootctl status`.
@@ -101,7 +100,6 @@ FW_CODE    := /usr/share/OVMF/OVMF_CODE_4M.secboot.fd
 FW_VARS    := /usr/share/OVMF/OVMF_VARS_4M.ms.fd
 else
 # arm64 boots without Secure Boot — Ubuntu ships no MS-enrolled AAVMF vars
-QEMU_PKGS  := qemu-system-arm qemu-efi-aarch64
 QEMU       := qemu-system-aarch64
 QEMU_OPTS  := -machine virt,accel=kvm:tcg -cpu max
 # serial on stdio — the arm64 builder VM is headless
@@ -114,9 +112,6 @@ FW_CODE    := /usr/share/AAVMF/AAVMF_CODE.fd
 FW_VARS    := /usr/share/AAVMF/AAVMF_VARS.fd
 endif
 
-boot-deps:
-	sudo apt-get install -y -qq $(QEMU_PKGS) 2>/dev/null
-
 # 32G: 512M EFI + 2x 10G A/B slots + ~11G data
 define QEMU_BOOT
 	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
@@ -128,12 +123,12 @@ define QEMU_BOOT
 		-drive if=pflash,format=raw,file=$(BUILD)/test-vars.fd
 endef
 
-boot: $(ISO) boot-deps
+boot: $(ISO)
 	$(QEMU_BOOT)
 
 # Serial console on stdio, no window. On amd64 pick the "serial console"
 # entry in the grub menu (the menu shows on serial too); arm64 is
 # serial-primary already.
 boot-headless: QEMU_UI := -nographic -serial mon:stdio
-boot-headless: $(ISO) boot-deps
+boot-headless: $(ISO)
 	$(QEMU_BOOT)

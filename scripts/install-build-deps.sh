@@ -14,5 +14,9 @@ apt-get install -y --no-install-recommends \
     make \
     dosfstools \
     mtools \
-    e2fsprogs
+    e2fsprogs \
+    qemu-system-x86 \
+    qemu-system-arm \
+    ovmf \
+    qemu-efi-aarch64
 rm -rf /var/lib/apt/lists/*
