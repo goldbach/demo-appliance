@@ -15,6 +15,12 @@ ARCH="${ARCH:-$(dpkg --print-architecture)}"
 OUTPUT="${1:-$BUILD/appliance-rootfs-$ARCH.tar.zst}"
 SUITES="resolute"
 
+# Baked-in admin account. Same credentials on every box built with these
+# values — fine for the demo phase, see TODO "Baked-in admin user".
+ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-appliance}"
+export ADMIN_USERNAME ADMIN_PASSWORD
+
 # amd64 lives on archive.ubuntu.com; every other arch on ports.ubuntu.com
 case "$ARCH" in
     amd64) MIRROR_URL="http://archive.ubuntu.com/ubuntu/" ;;
@@ -41,6 +47,8 @@ PACKAGES=(
     "grub-efi-${ARCH}-signed" shim-signed
     # minimal ops: ps/free/sysctl
     procps
+    # admin account (baked in via customize hooks below)
+    sudo
 )
 
 log() { echo "[build-rootfs] $*"; }
@@ -70,6 +78,8 @@ mmdebstrap \
     --customize-hook='copy-in units/k3s-server.service /etc/systemd/system/' \
     --customize-hook='copy-in units/k3s-agent.service /etc/systemd/system/' \
     --customize-hook='printf "disable k3s-server.service\ndisable k3s-agent.service\n" > "$1/usr/lib/systemd/system-preset/99-appliance.preset"' \
+    --customize-hook='chroot "$1" useradd -m -s /bin/bash -G sudo "$ADMIN_USERNAME"' \
+    --customize-hook='echo "$ADMIN_USERNAME:$ADMIN_PASSWORD" | chroot "$1" chpasswd' \
     --customize-hook='chroot "$1" update-initramfs -u' \
     --customize-hook='chroot "$1" systemctl preset-all' \
     "$SUITES" "$OUTPUT" "$MIRROR"

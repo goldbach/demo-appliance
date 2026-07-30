@@ -180,3 +180,19 @@ the data. Rule: k3s version bumps are the committed part of an update —
 `k3s etcd-snapshot` to `/data` before updating; OS rollback is only free
 within the same k3s version. (Relevant for the planned control-plane
 failover mode: embedded etcd members carry state across slots.)
+
+## Baked-in admin user (temporary — fix before shipping)
+
+`build-rootfs.sh` bakes `$ADMIN_USERNAME` (default `admin`, sudo group) with
+the fixed `$ADMIN_PASSWORD` (default `appliance`) into the payload image:
+every box built from the same invocation shares credentials, and password
+ssh login is enabled. Acceptable for the demo phase only. Later, pick one:
+
+- Per-device credentials via `machine.conf` + firstboot — blocked on `/etc`
+  persistence across A/B slots (see "Shared state on `/data`"): a
+  firstboot-created user exists only in slot A's `/etc` today.
+- At minimum: commit a crypt hash instead of cleartext
+  (`useradd -p "$(openssl passwd -6 ...)"`), force a password change on
+  first login (`chage -d 0`), and/or disable ssh password auth in favor of
+  an `authorized_keys` drop from `machine.conf` (keys on `/data` per the
+  shared-state plan).
