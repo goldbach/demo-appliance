@@ -32,7 +32,7 @@ ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
                  firstboot/firstboot.sh $(wildcard firstboot/firstboot.d/*.sh) \
                  firstboot/machine.conf.example
 
-.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs test test-secure test-deps
+.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-deps
 
 all: iso
 
@@ -84,19 +84,23 @@ clean-live:
 clean-rootfs:
 	rm -f $(ROOTFS_TAR)
 
-# --- QEMU boot test (on macOS: run inside the builder VM, see README) ---
+# --- Boot the ISO in QEMU (on macOS: run inside the builder VM, see README) ---
 # accel=kvm:tcg picks KVM when the host arch matches, emulation otherwise.
 
 ifeq ($(ARCH),amd64)
 QEMU_PKGS  := qemu-system-x86 ovmf
 QEMU       := qemu-system-x86_64
-QEMU_OPTS  := -machine q35,accel=kvm:tcg
+# Secure Boot by default: smm + secure pflash, secboot firmware, Microsoft
+# keys pre-enrolled in the VARS. Verify in the guest with `bootctl status`.
+QEMU_OPTS  := -machine q35,smm=on,accel=kvm:tcg \
+	-global driver=cfi.pflash01,property=secure,value=on
 # graphical window — matches the ISO's amd64 console (tty0 last)
 QEMU_UI    :=
 QEMU_CDROM := -boot d -drive file=$(ISO),media=cdrom,if=ide
-FW_CODE    := /usr/share/OVMF/OVMF_CODE_4M.fd
-FW_VARS    := /usr/share/OVMF/OVMF_VARS_4M.fd
+FW_CODE    := /usr/share/OVMF/OVMF_CODE_4M.secboot.fd
+FW_VARS    := /usr/share/OVMF/OVMF_VARS_4M.ms.fd
 else
+# arm64 boots without Secure Boot — Ubuntu ships no MS-enrolled AAVMF vars
 QEMU_PKGS  := qemu-system-arm qemu-efi-aarch64
 QEMU       := qemu-system-aarch64
 QEMU_OPTS  := -machine virt,accel=kvm:tcg -cpu max
@@ -110,11 +114,11 @@ FW_CODE    := /usr/share/AAVMF/AAVMF_CODE.fd
 FW_VARS    := /usr/share/AAVMF/AAVMF_VARS.fd
 endif
 
-test-deps:
+boot-deps:
 	sudo apt-get install -y -qq $(QEMU_PKGS) 2>/dev/null
 
 # 32G: 512M EFI + 2x 10G A/B slots + ~11G data
-test: $(ISO) test-deps
+boot: $(ISO) boot-deps
 	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
 	cp -f $(FW_VARS) $(BUILD)/test-vars.fd
 	$(QEMU) $(QEMU_OPTS) -m 4096 $(QEMU_UI) \
@@ -122,20 +126,3 @@ test: $(ISO) test-deps
 		-drive file=$(BUILD)/test-disk.raw,format=raw,if=virtio \
 		-drive if=pflash,format=raw,readonly=on,file=$(FW_CODE) \
 		-drive if=pflash,format=raw,file=$(BUILD)/test-vars.fd
-
-# Same as test, but with Secure Boot enabled (secboot firmware + Microsoft
-# keys pre-enrolled in the VARS). Verify with `bootctl status`.
-# amd64 only: Ubuntu ships no MS-enrolled AAVMF vars for arm64.
-test-secure: $(ISO) test-deps
-ifeq ($(ARCH),amd64)
-	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
-	cp -f /usr/share/OVMF/OVMF_VARS_4M.ms.fd $(BUILD)/test-vars.secure.fd
-	$(QEMU) -machine q35,smm=on,accel=kvm:tcg -m 4096 $(QEMU_UI) \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		$(QEMU_CDROM) \
-		-drive file=$(BUILD)/test-disk.raw,format=raw,if=virtio \
-		-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
-		-drive if=pflash,format=raw,file=$(BUILD)/test-vars.secure.fd
-else
-	$(error test-secure requires ARCH=amd64)
-endif

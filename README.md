@@ -47,8 +47,7 @@ limactl shell builder
 make iso              # full pipeline: fetch → rootfs + live → image → iso
 make rootfs           # just the payload rootfs tarball
 make live             # just the micro live (installer) rootfs tarball
-make test             # boot the ISO in QEMU (UEFI)
-make test-secure      # same with Secure Boot enabled (amd64 only)
+make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
 ```
 
 Builds target the host architecture by default — arm64 inside the builder VM.
