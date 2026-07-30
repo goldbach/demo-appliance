@@ -109,8 +109,9 @@ endif
 test-deps:
 	sudo apt-get install -y -qq $(QEMU_PKGS) 2>/dev/null
 
+# 32G: 512M EFI + 2x 10G A/B slots + ~11G data
 test: $(ISO) test-deps
-	rm -f $(BUILD)/test-disk.raw && truncate -s 20G $(BUILD)/test-disk.raw
+	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
 	cp -f $(FW_VARS) $(BUILD)/test-vars.fd
 	$(QEMU) $(QEMU_OPTS) -m 4096 -nographic \
 		-serial mon:stdio \
@@ -124,7 +125,7 @@ test: $(ISO) test-deps
 # amd64 only: Ubuntu ships no MS-enrolled AAVMF vars for arm64.
 test-secure: $(ISO) test-deps
 ifeq ($(ARCH),amd64)
-	rm -f $(BUILD)/test-disk.raw && truncate -s 20G $(BUILD)/test-disk.raw
+	rm -f $(BUILD)/test-disk.raw && truncate -s 32G $(BUILD)/test-disk.raw
 	cp -f /usr/share/OVMF/OVMF_VARS_4M.ms.fd $(BUILD)/test-vars.secure.fd
 	$(QEMU) -machine q35,smm=on,accel=kvm:tcg -m 4096 -nographic \
 		-global driver=cfi.pflash01,property=secure,value=on \

@@ -10,6 +10,10 @@ export DISK="${1:?usage: install.sh <disk>}"
 export ROOTFS_IMAGE="${ROOTFS_IMAGE:?ROOTFS_IMAGE not set}"
 export MACHINE_CONF="${MACHINE_CONF:?MACHINE_CONF not set}"
 
+# Partition layout (MiB) — shared by the preflight and partition steps
+export EFI_SIZE=512
+export ROOTFS_SIZE=10240   # 10 GiB per A/B slot
+
 STEPS_DIR="$(dirname "$0")/installer.d"
 
 log() { echo "[install] $*"; }

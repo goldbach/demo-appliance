@@ -8,9 +8,8 @@
 # up in blkid with a duplicate UUID/label from a previous install).
 set -euo pipefail
 
-# Sizes in MiB
-EFI_SIZE=512
-ROOTFS_SIZE=10240   # 10 GiB per A/B slot
+# EFI_SIZE / ROOTFS_SIZE (MiB) come from install.sh; the disk was already
+# checked against them by 00-preflight.sh.
 
 log() { echo "[install:partition] $*"; }
 
