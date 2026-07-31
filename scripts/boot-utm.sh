@@ -21,8 +21,8 @@
 # in UTM's own window. (An earlier version of this script drove the arm64
 # ISO's serial console instead via a pty — utmctl's `attach` subcommand turned
 # out to be a no-op on UTM 4.7.5 ["attach command is not implemented yet!"],
-# so make-iso.sh now offers a "(display console, unattended)" grub entry for this VM to
-# select, alongside the still-default serial one.)
+# so make-iso.sh now offers a "(display console, unattended)" grub entry for
+# this VM to select, alongside the still-default serial one.)
 #
 # Usage:
 #   ./scripts/boot-utm.sh <iso>
@@ -95,15 +95,29 @@ fi
 # test, so exact network config isn't load-bearing here.
 #
 # A display is attached because the arm64 ISO's grub menu now offers a
-# "(display console, unattended)" entry alongside the default serial one (make-iso.sh) —
-# without a display device UTM starts the VM with -vga none and there's
-# nothing to see. virtio-gpu-gl-pci matches UTM's documented QEMU-aarch64
-# scripting example.
+# "(display console, unattended)" entry alongside the default serial one
+# (make-iso.sh) — without a display device UTM starts the VM with -vga none
+# and there's nothing to see. Plain virtio-gpu-pci, not the -gl (OpenGL
+# passthrough) variant some UTM scripting examples use: this console is pure
+# text output, no 3D/compositor need, and GL passthrough depends on the
+# host's SPICE/EGL pipeline actually working — needless fragility here.
+#
+# Disk listed BEFORE the ISO in `drives`, matching boot-proxmox.sh's
+# disk-first/CD-second order: UTM assigns qemu bootindex by drive-list
+# position, and unlike Proxmox's OVMF, this UTM build doesn't let
+# grub-install's runtime NVRAM BootOrder edit override an ISO-first
+# bootindex — an ISO-first VM just reboots back into the installer forever
+# after a successful install (confirmed: install completes, reboots, lands
+# back on "BdsDxe: starting Boot0001 ... USB HARDDRIVE", loops indefinitely).
+# Disk-first relies on plain OVMF fallthrough instead (empty disk isn't
+# bootable → falls through to the ISO on the first boot only; once the disk
+# has a real bootloader, it wins on every later boot) — the same mechanism
+# boot-proxmox.sh already depends on, no NVRAM-priority assumption needed.
 echo "Creating UTM VM $VM_NAME..."
 VM_ID="$(osascript <<EOF
 tell application "UTM"
     set isoFile to POSIX file "$ISO"
-    set newVM to make new virtual machine with properties {backend:qemu, configuration:{name:"$VM_NAME", architecture:"$ARCH", memory:$VM_MEM_MB, cpu cores:$VM_CORES, drives:{{removable:true, source:isoFile}, {guest size:$VM_DISK_MB}}, displays:{{hardware:"virtio-gpu-gl-pci"}}}}
+    set newVM to make new virtual machine with properties {backend:qemu, configuration:{name:"$VM_NAME", architecture:"$ARCH", memory:$VM_MEM_MB, cpu cores:$VM_CORES, drives:{{guest size:$VM_DISK_MB}, {removable:true, source:isoFile}}, displays:{{hardware:"virtio-gpu-pci"}}}}
     return id of newVM
 end tell
 EOF
