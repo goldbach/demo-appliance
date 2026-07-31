@@ -106,7 +106,9 @@ else
 # arm64 boots without Secure Boot — Ubuntu ships no MS-enrolled AAVMF vars
 QEMU       := qemu-system-aarch64
 QEMU_OPTS  := -machine virt,accel=kvm:tcg -cpu max
-# serial on stdio — the arm64 builder VM is headless
+# serial on stdio — the arm64 builder VM is headless, always (not just for
+# boot-headless below); pick the "serial console" grub entry manually since
+# the ISO's default is now display-primary (see boot-headless's comment)
 QEMU_UI    := -nographic -serial mon:stdio
 # the virt machine has no IDE — attach the ISO via virtio-scsi
 QEMU_CDROM := -device virtio-scsi-pci \
@@ -130,9 +132,11 @@ endef
 boot: $(ISO)
 	$(QEMU_BOOT)
 
-# Serial console on stdio, no window. On amd64 pick the "serial console"
-# entry in the grub menu (the menu shows on serial too); arm64 is
-# serial-primary already.
+# Serial console on stdio, no window. Both arches now default to the
+# display-primary grub entry (see scripts/make-iso.sh) — headless/serial
+# testing is postponed for now, so pick the "serial console" entry in the
+# grub menu manually (the menu itself shows on serial too) within its 10s
+# timeout, on either arch, or this has nothing to bind its console to.
 boot-headless: QEMU_UI := -nographic -serial mon:stdio
 boot-headless: $(ISO)
 	$(QEMU_BOOT)

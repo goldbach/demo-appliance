@@ -18,11 +18,12 @@
 # utmctl has no `create` subcommand (utmapp/UTM#6691), so the VM is created
 # via UTM's AppleScript scripting interface instead, with a display attached;
 # utmctl handles start/stop/delete once it exists, and the VM's console shows
-# in UTM's own window. (An earlier version of this script drove the arm64
-# ISO's serial console instead via a pty — utmctl's `attach` subcommand turned
-# out to be a no-op on UTM 4.7.5 ["attach command is not implemented yet!"],
-# so make-iso.sh now offers a "(display console, unattended)" grub entry for
-# this VM to select, alongside the still-default serial one.)
+# in UTM's own window, no grub navigation needed — display is the default
+# boot entry (make-iso.sh), serial is just the alternate for whenever
+# headless/serial testing comes back into scope. (An earlier version of this
+# script drove the arm64 ISO's serial console instead via a pty — utmctl's
+# `attach` subcommand turned out to be a no-op on UTM 4.7.5 ["attach command
+# is not implemented yet!"].)
 #
 # Usage:
 #   ./scripts/boot-utm.sh <iso>
@@ -94,13 +95,12 @@ fi
 # (Shared/NAT) — this is just an installer smoke test, not a cluster-join
 # test, so exact network config isn't load-bearing here.
 #
-# A display is attached because the arm64 ISO's grub menu now offers a
-# "(display console, unattended)" entry alongside the default serial one
-# (make-iso.sh) — without a display device UTM starts the VM with -vga none
-# and there's nothing to see. Plain virtio-gpu-pci, not the -gl (OpenGL
-# passthrough) variant some UTM scripting examples use: this console is pure
-# text output, no 3D/compositor need, and GL passthrough depends on the
-# host's SPICE/EGL pipeline actually working — needless fragility here.
+# A display is attached because the ISO's default grub entry is display-
+# primary (make-iso.sh) — without a display device UTM starts the VM with
+# -vga none and there's nothing to see. Plain virtio-gpu-pci, not the -gl
+# (OpenGL passthrough) variant some UTM scripting examples use: this console
+# is pure text output, no 3D/compositor need, and GL passthrough depends on
+# the host's SPICE/EGL pipeline actually working — needless fragility here.
 #
 # Disk listed BEFORE the ISO in `drives`, matching boot-proxmox.sh's
 # disk-first/CD-second order: UTM assigns qemu bootindex by drive-list
@@ -143,10 +143,8 @@ echo "Starting $VM_NAME (UTM window should open automatically)..."
 "$UTMCTL" start "$VM_ID"
 
 echo ""
-echo "In the UTM window's grub menu, the default entry is still serial-only —"
-echo "arrow down to \"Install Appliance (display console, unattended)\" and"
-echo "press Enter. The install itself is unattended (a 5s Ctrl-C window, then"
-echo "it proceeds and erases the target disk) — this just gives you a"
-echo "graphical view of it instead of a serial one."
+echo "The UTM window shows the default grub entry booting — no navigation"
+echo "needed. Install is unattended (a 5s Ctrl-C window, then it proceeds and"
+echo "erases the target disk); firstboot follows automatically after reboot."
 echo ""
 read -r -p "Press Enter here when done to stop and destroy the VM... "

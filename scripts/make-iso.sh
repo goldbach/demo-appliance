@@ -32,14 +32,14 @@ BOOT_EFI="BOOT${EFI^^}.efi"
 GRUB_EFI="grub${EFI}.efi"
 # The LAST console= owns /dev/console, where the interactive installer runs;
 # the kernel mirrors boot messages to ALL listed consoles. Both orderings
-# ship as separate menu entries: display-primary (amd64 default) and
-# serial-primary (headless; arm64 default — the builder VM has no display).
+# ship as separate menu entries: display-primary (the default, both arches —
+# see scripts/boot-utm.sh for local Apple Silicon testing) and serial-primary
+# as the alternate. Headless/serial setups (real headless hardware, the
+# Lima builder VM's own `make boot`/`boot-headless`) are postponed for now;
+# picking the serial alternate at the grub menu still works meanwhile.
 CONSOLE_DISPLAY="console=$SERIAL_TTY,115200 console=tty0"
 CONSOLE_SERIAL="console=tty0 console=$SERIAL_TTY,115200"
-case "$ARCH" in
-    amd64) CONSOLE_DEFAULT="$CONSOLE_DISPLAY" ;;
-    arm64) CONSOLE_DEFAULT="$CONSOLE_SERIAL" ;;
-esac
+CONSOLE_DEFAULT="$CONSOLE_DISPLAY"
 
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/make-iso.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
@@ -150,12 +150,8 @@ menuentry "Install Appliance (unattended — ERASES the target disk)" {
     initrd /boot/initrd.img
 }
 EOF
-# amd64 defaults to the display — add serial-primary entries for headless
-# boxes (the grub menu itself is on both terminals, see GRUB_SERIAL).
-# arm64 defaults to serial (the builder VM is headless) — add display-primary
-# entries the other way round, for testing under a VM with a virtual display
-# attached (e.g. scripts/boot-utm.sh) instead of a serial pty.
-if [ "$ARCH" = amd64 ]; then
+# Both arches default to display now; serial is the alternate for whenever
+# headless/serial testing comes back into scope (see the note above).
 cat <<EOF
 
 menuentry "Install Appliance (serial console, unattended)" {
@@ -163,15 +159,6 @@ menuentry "Install Appliance (serial console, unattended)" {
     initrd /boot/initrd.img
 }
 EOF
-else
-cat <<EOF
-
-menuentry "Install Appliance (display console, unattended)" {
-    linux  /boot/vmlinuz boot=live $CONSOLE_DISPLAY
-    initrd /boot/initrd.img
-}
-EOF
-fi
 } > "$ISO_ROOT/EFI/ubuntu/grub.cfg"
 cp "$ISO_ROOT/EFI/ubuntu/grub.cfg" "$ISO_ROOT/boot/grub/grub.cfg"
 

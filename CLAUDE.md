@@ -36,7 +36,8 @@ make rootfs           # just the payload rootfs tarball
 make live             # just the micro live (installer) rootfs tarball
 make fetch            # download k3s binary + airgap images (vendor/k3s/$ARCH)
 make boot             # boot the built ISO in QEMU (UEFI, Secure Boot)
-make boot-headless    # same, serial console (pick "serial console" grub entry on amd64)
+make boot-headless    # same, serial console — pick "serial console" grub entry
+                      # manually (either arch; ISO defaults to display now)
 PROXMOX_HOST=<host> make boot-proxmox   # throwaway Secure Boot VM on real Proxmox (amd64 only)
 
 make iso ARCH=amd64   # cross build via Rosetta (only supported cross direction)
@@ -52,8 +53,13 @@ Mac host, not inside `limactl shell builder`** — it's not a `make` target
 because it needs UTM.app/`utmctl`, which have no path from the Lima guest
 (unlike `boot-proxmox`, which reaches Proxmox over the network the guest also
 has). VM creation goes through UTM's AppleScript scripting interface (`utmctl`
-itself has no `create` subcommand); `utmctl start --attach` then gives you the
-arm64 ISO's serial console, same output as `make boot-headless`.
+itself has no `create` subcommand, and its `attach`/`start --attach` are
+no-ops on UTM 4.7.5); it attaches a display and boots straight into the ISO's
+now-default display-primary grub entry, shown in UTM's own window — no grub
+navigation needed. The VM's disk must be listed before the ISO in the
+AppleScript `drives:` config (bootindex order) or it reinstalls in an
+infinite loop after the first successful install instead of booting the
+disk — see the comment in boot-utm.sh for how that was diagnosed.
 
 There is no test suite. Validation is: build, then `make boot`/`make boot-headless`
 (or `make boot-proxmox` for a real Secure Boot host) and watch the installer +

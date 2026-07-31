@@ -48,8 +48,10 @@ make iso              # full pipeline: fetch → rootfs + live → image → iso
 make rootfs           # just the payload rootfs tarball
 make live             # just the micro live (installer) rootfs tarball
 make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
-make boot-headless    # same on serial/stdio — on amd64 pick the
-                      # "serial console" grub entry
+make boot-headless    # same on serial/stdio — the ISO's default grub entry
+                      # is display-primary now, so pick "serial console"
+                      # manually within its 10s timeout (either arch);
+                      # headless/serial is postponed for now, see boot-utm.sh
 PROXMOX_HOST=<host> make boot-proxmox
                       # throwaway Secure Boot install-test VM on a Proxmox
                       # host (amd64; destroys the VM when you hit Enter)
