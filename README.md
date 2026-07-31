@@ -55,6 +55,22 @@ PROXMOX_HOST=<host> make boot-proxmox
                       # host (amd64; destroys the VM when you hit Enter)
 ```
 
+**On macOS only**, there's also a local equivalent of `boot-proxmox` that
+doesn't need a Proxmox host: `scripts/boot-utm.sh` creates a throwaway UTM VM
+and boots the arm64 ISO in it. Unlike everything else above, run it **on the
+Mac host directly, not inside `limactl shell builder`** — UTM.app/`utmctl`
+have no path from the Lima guest:
+
+```bash
+./scripts/boot-utm.sh build/appliance-arm64.iso
+```
+
+No Secure Boot involved (arm64 UEFI has no MS-key-enrollment concept to
+emulate here); it just boots the installer under UTM's QEMU backend so you
+can watch it run without a remote host. amd64 isn't supported this way — no
+acceleration for it on Apple Silicon under UTM, only usable via `make
+boot*` in the builder VM or `boot-proxmox` on real x86.
+
 Builds target the host architecture by default — arm64 inside the builder VM.
 The only supported cross build is amd64 on an arm64 host (Rosetta in the
 builder VM); arm64 images are always built on arm64:

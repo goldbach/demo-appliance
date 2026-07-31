@@ -44,6 +44,17 @@ make clean            # rm -rf build/
 make distclean        # clean + wipe vendor/ (forces k3s re-fetch)
 ```
 
+`scripts/boot-utm.sh <iso>` is the macOS-only local equivalent of
+`boot-proxmox`: a throwaway UTM VM instead of a remote Proxmox host,
+arm64-only (no acceleration for amd64 under UTM on Apple Silicon), no Secure
+Boot semantics. Unlike every other command above, **run it directly on the
+Mac host, not inside `limactl shell builder`** — it's not a `make` target
+because it needs UTM.app/`utmctl`, which have no path from the Lima guest
+(unlike `boot-proxmox`, which reaches Proxmox over the network the guest also
+has). VM creation goes through UTM's AppleScript scripting interface (`utmctl`
+itself has no `create` subcommand); `utmctl start --attach` then gives you the
+arm64 ISO's serial console, same output as `make boot-headless`.
+
 There is no test suite. Validation is: build, then `make boot`/`make boot-headless`
 (or `make boot-proxmox` for a real Secure Boot host) and watch the installer +
 firstboot run to completion.

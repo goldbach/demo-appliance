@@ -160,7 +160,10 @@ menuentry "Install Appliance (automatic, NO confirmation)" {
 }
 EOF
 # amd64 defaults to the display — add serial-primary entries for headless
-# boxes (the grub menu itself is on both terminals, see GRUB_SERIAL)
+# boxes (the grub menu itself is on both terminals, see GRUB_SERIAL).
+# arm64 defaults to serial (the builder VM is headless) — add display-primary
+# entries the other way round, for testing under a VM with a virtual display
+# attached (e.g. scripts/boot-utm.sh) instead of a serial pty.
 if [ "$ARCH" = amd64 ]; then
 cat <<EOF
 
@@ -171,6 +174,19 @@ menuentry "Install Appliance (serial console)" {
 
 menuentry "Install Appliance (serial console, automatic, NO confirmation)" {
     linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE_SERIAL
+    initrd /boot/initrd.img
+}
+EOF
+else
+cat <<EOF
+
+menuentry "Install Appliance (display console)" {
+    linux  /boot/vmlinuz boot=live $CONSOLE_DISPLAY
+    initrd /boot/initrd.img
+}
+
+menuentry "Install Appliance (display console, automatic, NO confirmation)" {
+    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE_DISPLAY
     initrd /boot/initrd.img
 }
 EOF
