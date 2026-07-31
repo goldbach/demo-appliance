@@ -4,6 +4,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
     mmdebstrap \
     uidmap \
+    fakeroot \
     xorriso \
     isolinux \
     syslinux-common \

@@ -14,17 +14,30 @@ trap 'rm -rf "$TMPDIR"' EXIT
 # Extract tar to a subdirectory (image file goes outside to avoid circular copy)
 ROOTFS_DIR="$TMPDIR/rootfs"
 mkdir "$ROOTFS_DIR"
-echo "Extracting rootfs..."
-tar -xf "$SRC" -C "$ROOTFS_DIR" --exclude='./dev/*'
 
 # Create ext4 image and populate from directory (no mount needed)
 # Neutral fs label: the same image lands in slot A at install time and in
 # slot B via sysupdate — slot identity lives in the GPT partition labels
 # (rootfs-a / rootfs-b), not in the filesystem.
 IMG="$TMPDIR/rootfs.raw"
-echo "Creating ext4 image..."
 truncate -s "${SIZE}M" "$IMG"
-mkfs.ext4 -L rootfs -d "$ROOTFS_DIR" "$IMG"
+
+# The tarball correctly records root-owned files (mmdebstrap's unprivileged
+# --mode=unshare build maps its user namespace back to real uid 0 in the
+# tar), but a plain unprivileged `tar -x` here can't chown to uid 0 and
+# silently extracts everything as the calling user instead — and mke2fs -d
+# then bakes THAT wrong ownership into the image (e.g. /etc/sudoers ends up
+# owned by the build user, and sudo on the installed appliance refuses to
+# run). Both commands must run in the same fakeroot session so the faked
+# ownership from the extraction is still in effect when mke2fs stats the
+# directory — two separate `fakeroot` invocations would each start a fresh,
+# empty fake-ownership database.
+echo "Extracting rootfs..."
+fakeroot -- bash -c '
+    set -euo pipefail
+    tar -xf "$1" -C "$2" --exclude="./dev/*"
+    mkfs.ext4 -L rootfs -d "$2" "$3"
+' _ "$SRC" "$ROOTFS_DIR" "$IMG"
 
 e2fsck -f "$IMG" || true
 resize2fs -M "$IMG"  # shrink to minimum
