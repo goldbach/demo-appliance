@@ -132,11 +132,16 @@ endef
 boot: $(ISO)
 	$(QEMU_BOOT)
 
-# Serial console on stdio, no window. Both arches now default to the
-# display-primary grub entry (see scripts/make-iso.sh) — headless/serial
-# testing is postponed for now, so pick the "serial console" entry in the
-# grub menu manually (the menu itself shows on serial too) within its 10s
-# timeout, on either arch, or this has nothing to bind its console to.
+# NOT READY YET — headless/serial testing is postponed (see scripts/boot-utm.sh
+# and the console-default commit history for why). Both arches now default to
+# the display-primary grub entry (scripts/make-iso.sh), so this needs picking
+# "serial console" manually in the grub menu within its 10s timeout, on either
+# arch, or there's nothing for the console to bind to. Untested since that
+# flip, and QEMU_CDROM above gives the CD explicit bootindex=0 with no
+# bootindex on the virtio test-disk — boot-utm.sh hit an infinite
+# reinstall-loop from that exact pattern (ISO winning boot priority forever
+# after install); this target likely has the same latent bug, just not
+# confirmed here.
 boot-headless: QEMU_UI := -nographic -serial mon:stdio
 boot-headless: $(ISO)
 	$(QEMU_BOOT)
