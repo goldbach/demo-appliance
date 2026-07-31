@@ -166,13 +166,8 @@ EOF
 else
 cat <<EOF
 
-menuentry "Install Appliance (display console)" {
+menuentry "Install Appliance (display console, unattended)" {
     linux  /boot/vmlinuz boot=live $CONSOLE_DISPLAY
-    initrd /boot/initrd.img
-}
-
-menuentry "Install Appliance (display console, automatic, NO confirmation)" {
-    linux  /boot/vmlinuz boot=live appliance.install=auto $CONSOLE_DISPLAY
     initrd /boot/initrd.img
 }
 EOF

@@ -95,7 +95,7 @@ The ISO carries three things, with very different rebuild costs:
 
 1. **Live env** (`live/filesystem.squashfs`) — a minimal rootfs that boots
    the installer: kernel, systemd, disk tools, and `installer-run.sh`
-   (medium/disk discovery + confirmation). Nothing k3s-related.
+   (medium/disk discovery, unattended). Nothing k3s-related.
 2. **Payload image** (`installer/rootfs.raw.zst`) — the full node OS written
    to slot A: k3s, openssh, grub, systemd units. The same image
    systemd-sysupdate writes on A/B updates.

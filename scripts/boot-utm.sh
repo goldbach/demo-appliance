@@ -21,7 +21,7 @@
 # in UTM's own window. (An earlier version of this script drove the arm64
 # ISO's serial console instead via a pty — utmctl's `attach` subcommand turned
 # out to be a no-op on UTM 4.7.5 ["attach command is not implemented yet!"],
-# so make-iso.sh now offers a "(display console)" grub entry for this VM to
+# so make-iso.sh now offers a "(display console, unattended)" grub entry for this VM to
 # select, alongside the still-default serial one.)
 #
 # Usage:
@@ -95,7 +95,7 @@ fi
 # test, so exact network config isn't load-bearing here.
 #
 # A display is attached because the arm64 ISO's grub menu now offers a
-# "(display console)" entry alongside the default serial one (make-iso.sh) —
+# "(display console, unattended)" entry alongside the default serial one (make-iso.sh) —
 # without a display device UTM starts the VM with -vga none and there's
 # nothing to see. virtio-gpu-gl-pci matches UTM's documented QEMU-aarch64
 # scripting example.
@@ -130,7 +130,9 @@ echo "Starting $VM_NAME (UTM window should open automatically)..."
 
 echo ""
 echo "In the UTM window's grub menu, the default entry is still serial-only —"
-echo "arrow down to \"Install Appliance (display console)\" and press Enter to"
-echo "get an interactive graphical console for the installer."
+echo "arrow down to \"Install Appliance (display console, unattended)\" and"
+echo "press Enter. The install itself is unattended (a 5s Ctrl-C window, then"
+echo "it proceeds and erases the target disk) — this just gives you a"
+echo "graphical view of it instead of a serial one."
 echo ""
 read -r -p "Press Enter here when done to stop and destroy the VM... "

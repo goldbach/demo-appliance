@@ -100,9 +100,10 @@ Rebuild cost by what you touched:
 1. **ISO boots** → `installer.service` (gated on `boot=live` in
    `/proc/cmdline`) runs `installer/installer-run.sh`: finds the installer
    medium by looking for `live/filesystem.squashfs`, discovers non-removable
-   candidate disks, confirms with the operator (or skips confirmation if
-   `appliance.install=auto` is on the cmdline — but only when exactly one
-   candidate disk exists), then `exec`s `install.sh <disk>`.
+   candidate disks (dies if it's not exactly one — never guesses which disk
+   to wipe), waits 5s (a Ctrl-C window for a watching operator, not a
+   confirmation prompt — install is unattended by design), then `exec`s
+   `install.sh <disk>`.
 2. **`install.sh`** exports partition-layout vars (`EFI_SIZE`, `ROOTFS_SIZE`,
    `EFI_PART`/`ROOTFS_A`/`ROOTFS_B`/`DATA_PART`) and runs every script in
    `installer/installer.d/` in glob order:
