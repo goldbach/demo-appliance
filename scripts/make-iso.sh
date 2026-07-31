@@ -94,12 +94,24 @@ cp "$WORK/${KERNEL#./}"   "$ISO_ROOT/boot/vmlinuz"
 cp "$WORK/${INITRD#./}"   "$ISO_ROOT/boot/initrd.img"
 
 # --- Squashfs: the micro live rootfs that boots in RAM ---
+# fakeroot: the tarball correctly records root-owned files (mmdebstrap's
+# unprivileged --mode=unshare build maps its user namespace back to real
+# uid 0 in the tar — see scripts/make-image.sh's identical fix for the
+# payload rootfs), but a plain unprivileged `tar -x` can't chown to uid 0
+# and silently extracts everything as the calling user instead; mksquashfs
+# then bakes THAT wrong ownership into the live env (e.g. /etc/sudoers ends
+# up owned by the build user, breaking sudo in the live installer shell).
+# Extraction and mksquashfs must run in the same fakeroot session, or the
+# faked ownership from the extraction is gone by the time mksquashfs stats
+# the directory.
 echo "Building squashfs (this takes a minute)..."
 SQUASH_ROOT="$WORK/squashfs-root"
 mkdir -p "$SQUASH_ROOT"
-tar -xf "$LIVE_TAR" -C "$SQUASH_ROOT" --exclude='./dev/*'
-mksquashfs "$SQUASH_ROOT" "$ISO_ROOT/live/filesystem.squashfs" \
-    -comp zstd -Xcompression-level 9 -noappend -quiet
+fakeroot -- bash -c '
+    set -euo pipefail
+    tar -xf "$1" -C "$2" --exclude="./dev/*"
+    mksquashfs "$2" "$3" -comp zstd -Xcompression-level 9 -noappend -quiet
+' _ "$LIVE_TAR" "$SQUASH_ROOT" "$ISO_ROOT/live/filesystem.squashfs"
 printf '%s' "$(du -sx --block-size=1 "$SQUASH_ROOT" | cut -f1)" \
     > "$ISO_ROOT/live/filesystem.size"
 
