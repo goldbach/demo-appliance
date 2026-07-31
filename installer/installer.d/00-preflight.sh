@@ -33,4 +33,13 @@ DISK_MIB=$(( $(blockdev --getsize64 "$DISK") / 1048576 ))
 log "Verifying rootfs image integrity..."
 zstd -t "$ROOTFS_IMAGE" || fail "rootfs image is corrupt: $ROOTFS_IMAGE"
 
+# Diagnostic only — not a pass/fail check. Ownership here is the live env's,
+# not the target's, but a stray non-root owner is a useful signal that
+# something upstream (mmdebstrap hook, ISO repack) went wrong.
+log "Live env /etc ownership:"
+ls -ld /etc
+for f in /etc/passwd /etc/shadow /etc/gshadow /etc/sudoers; do
+    [ -e "$f" ] && ls -l "$f"
+done
+
 log "OK: $DISK (${DISK_MIB} MiB), UEFI boot, payload image + machine config present"
