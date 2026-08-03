@@ -47,6 +47,8 @@ PACKAGES=(
     "grub-efi-${ARCH}-signed" shim-signed
     # minimal ops: ps/free/sysctl
     procps
+    # runtime deps:
+    jq curl ansible skopeo
     # admin account (baked in via customize hooks below)
     sudo
 )
