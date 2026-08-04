@@ -1,8 +1,10 @@
 #!/bin/bash
 # Downloads the k3s binary and air-gap image tarball for a pinned version.
-# Run this before `make rootfs`. Output lands in vendor/k3s/$ARCH/ which the
-# rootfs build copies into the chroot, and the ISO build picks up images
-# separately.
+# Run this before `make base`. Output lands in vendor/k3s/$ARCH/, from where the
+# two halves take different routes: build-base-rootfs.sh copies the *binary*
+# into the base rootfs, while make-iso.sh puts the *images* on the ISO as plain
+# files (installer.d/60-airgap.sh then writes them to /data). Air-gap images are
+# deliberately never baked into a rootfs — see TODO.md.
 #
 # Usage: K3S_VERSION=v1.30.2+k3s1 [ARCH=arm64] ./scripts/fetch-k3s.sh
 set -euo pipefail

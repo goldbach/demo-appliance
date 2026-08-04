@@ -20,6 +20,7 @@ export K3S_VERSION ARCH ARCH_KERNEL
 # up to date (e.g. a truncated tarball from an interrupted mmdebstrap).
 .DELETE_ON_ERROR:
 
+BASE_TAR    := $(BUILD)/base-rootfs-$(ARCH).tar.zst
 ROOTFS_TAR  := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
 LIVE_TAR    := $(BUILD)/live-rootfs-$(ARCH).tar.zst
 ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
@@ -30,13 +31,16 @@ K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH).tar.zst
 K3S_STAMP   := vendor/k3s/$(ARCH)/.fetched-$(K3S_VERSION)
 
 # Scripts/units that get baked into the images or packed onto the ISO —
-# editing them must trigger the right rebuild/repack.
-PAYLOAD_UNITS := units/firstboot.service units/k3s-server.service units/k3s-agent.service
+# editing them must trigger the right rebuild/repack. The rootfs overlay and
+# step scripts hang off $(ROOTFS_TAR) only: they are applied by the fast
+# customization layer, so touching them must never re-run mmdebstrap.
+ROOTFS_OVERLAY := $(shell find rootfs/overlay -type f 2>/dev/null)
+ROOTFS_STEPS   := $(wildcard rootfs/rootfs.d/*.sh)
 ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
                  firstboot/firstboot.sh $(wildcard firstboot/firstboot.d/*.sh) \
                  firstboot/machine.conf.example
 
-.PHONY: all deps fetch live rootfs image iso iso-info clean distclean clean-iso clean-live clean-rootfs boot boot-headless boot-proxmox
+.PHONY: all deps fetch live base rootfs image iso iso-info clean distclean clean-iso clean-live clean-base clean-rootfs boot boot-headless boot-proxmox
 
 all: iso
 
@@ -49,7 +53,13 @@ deps:
 $(K3S_BIN) $(K3S_IMAGES) $(K3S_STAMP) &: scripts/fetch-k3s.sh
 	./scripts/fetch-k3s.sh
 
-$(ROOTFS_TAR): $(K3S_BIN) $(PAYLOAD_UNITS) scripts/build-rootfs.sh
+# Slow half: mmdebstrap from the network. Only the package list, the dpkg
+# excludes and the vendored k3s binary feed it.
+$(BASE_TAR): $(K3S_BIN) scripts/build-base-rootfs.sh
+	./scripts/build-base-rootfs.sh
+
+# Fast half: no network, seconds. Everything appliance-specific lands here.
+$(ROOTFS_TAR): $(BASE_TAR) $(ROOTFS_OVERLAY) $(ROOTFS_STEPS) scripts/build-rootfs.sh
 	./scripts/build-rootfs.sh
 
 $(LIVE_TAR): installer/installer-run.sh units/installer.service scripts/build-live.sh
@@ -65,6 +75,7 @@ $(ISO): $(LIVE_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) $(ISO_SCRIPTS) ./scripts/make-is
 
 fetch: $(K3S_BIN) $(K3S_IMAGES)
 live: $(LIVE_TAR)
+base: $(BASE_TAR)
 rootfs: $(ROOTFS_TAR)
 image: $(ROOTFS_ZST)
 iso: $(ISO)
@@ -84,6 +95,9 @@ clean-iso:
 
 clean-live:
 	rm -f $(LIVE_TAR)
+
+clean-base:
+	rm -f $(BASE_TAR)
 
 clean-rootfs:
 	rm -f $(ROOTFS_TAR)
@@ -136,12 +150,24 @@ boot: $(ISO)
 # and the console-default commit history for why). Both arches now default to
 # the display-primary grub entry (scripts/make-iso.sh), so this needs picking
 # "serial console" manually in the grub menu within its 10s timeout, on either
-# arch, or there's nothing for the console to bind to. Untested since that
-# flip, and QEMU_CDROM above gives the CD explicit bootindex=0 with no
-# bootindex on the virtio test-disk — boot-utm.sh hit an infinite
+# arch, or there's nothing for the console to bind to.
+#
+# 2026-08-04: tried again on arm64 under KVM, still broken, and it is NOT the
+# console-ordering flip. The live env hangs mid-boot: last output is
+# "Freeing initrd memory", then no console output at all, 0 bytes ever written
+# to the target disk, vCPU pegged at ~100%. Reproduced on BOTH grub entries
+# (default, and "serial console" selected by injecting ESC-[B + CR over the
+# serial line — confirmed applied, the kernel cmdline shows the swapped
+# console= order). So the installer never starts; it is not merely invisible.
+# Undiagnosed beyond that.
+#
+# NOTE this equally affects `make boot` on arm64, whose QEMU_UI is also
+# -nographic — the working arm64 path is scripts/boot-utm.sh on the Mac host.
+#
+# Also still unconfirmed: QEMU_CDROM above gives the CD explicit bootindex=0
+# with no bootindex on the virtio test-disk — boot-utm.sh hit an infinite
 # reinstall-loop from that exact pattern (ISO winning boot priority forever
-# after install); this target likely has the same latent bug, just not
-# confirmed here.
+# after install); this target likely has the same latent bug, never reached.
 boot-headless: QEMU_UI := -nographic -serial mon:stdio
 boot-headless: $(ISO)
 	$(QEMU_BOOT)

@@ -45,7 +45,8 @@ limactl shell builder
 
 ```bash
 make iso              # full pipeline: fetch → rootfs + live → image → iso
-make rootfs           # just the payload rootfs tarball
+make base             # just the base rootfs tarball (Ubuntu + vendored bins)
+make rootfs           # payload rootfs tarball (base + rootfs/overlay + rootfs.d)
 make live             # just the micro live (installer) rootfs tarball
 make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
 make boot-headless    # same on serial/stdio — the ISO's default grub entry
@@ -113,7 +114,8 @@ Iteration cost by change:
 | Change | Rebuild |
 |--------|---------|
 | firstboot / installer script | `make iso` — squashfs of the micro live + repack (fast) |
-| payload package | `make rootfs` (slow, rare) → `image` → `iso` |
+| payload unit, config file, admin user | `make rootfs` → `image` → `iso` (no mmdebstrap) |
+| payload package, k3s version | `make base` (slow, rare) → `rootfs` → `image` → `iso` |
 | kernel / live tooling | `make live` → `iso` |
 
 ## Configuration
@@ -124,5 +126,7 @@ Iteration cost by change:
 | `builder.yaml` | Lima VM config (ARM64 VZ + Rosetta, 4 CPU, 8GB RAM, 40GB disk) |
 | `installer/` | Installer entry points + `installer.d/` install steps (disk, bootloader, config) |
 | `firstboot/` | First-boot entry point + `firstboot.d/` node-setup steps (k3s role) |
-| `units/` | systemd units (k3s, installer, firstboot) |
+| `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, hostname, networkd, presets) |
+| `rootfs/rootfs.d/` | Payload customization steps, glob order (overlay copy, admin user, presets) |
+| `units/` | The live env's installer.service (payload units live in `rootfs/overlay/`) |
 | `sysupdate/` | A/B OTA updates via systemd-sysupdate |
