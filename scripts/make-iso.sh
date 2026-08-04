@@ -19,6 +19,7 @@ LIVE_TAR="${1:?missing live-rootfs.tar}"
 ROOTFS_IMG="${2:?missing rootfs.raw.zst}"
 OUT="${3:?missing output iso path}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
+K3S_VERSION="${K3S_VERSION:?set K3S_VERSION (exported by the Makefile)}"
 
 # EFI naming: amd64 → grubx64/shimx64/BOOTx64, arm64 → grubaa64/shimaa64/BOOTAA64.
 # grub spells its platform with the kernel arch on x86 (x86_64-efi) but the
@@ -129,11 +130,13 @@ cp -r firstboot/firstboot.d "$ISO_ROOT/installer/"
 chmod 0755 "$ISO_ROOT/installer/firstboot.d"/*.sh
 
 # --- k3s air-gap images (copied to /data by install.sh) ---
-K3S_IMAGES="vendor/k3s/$ARCH/images"
-if [ -d "$K3S_IMAGES" ]; then
+# The exact pinned file, NOT a glob: vendor/ keeps every version ever fetched,
+# and a glob would ship all of them (~217 MB each) onto the ISO.
+K3S_IMAGES="vendor/k3s/$ARCH/images/k3s-airgap-images-$ARCH-$K3S_VERSION.tar.zst"
+if [ -f "$K3S_IMAGES" ]; then
     mkdir -p "$ISO_ROOT/k3s-images"
-    cp "$K3S_IMAGES"/*.tar.zst "$ISO_ROOT/k3s-images/"
-    echo "Bundled k3s air-gap images."
+    cp "$K3S_IMAGES" "$ISO_ROOT/k3s-images/"
+    echo "Bundled k3s air-gap images ($K3S_VERSION)."
 fi
 
 # --- GRUB config ---

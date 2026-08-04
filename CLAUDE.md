@@ -103,15 +103,15 @@ split exists to keep a frequently-edited thing off the slow path:
    No k3s, no ssh, no iptables — it never touches anything the payload needs.
    Still a single mmdebstrap run; it has not been layered like the payload.
 2. **Base rootfs** (`scripts/build-base-rootfs.sh` → `base-rootfs-$ARCH.tar.zst`)
-   — stock Ubuntu via mmdebstrap, plus the *vendored* third-party binaries
-   (the k3s binary from `vendor/`) and nothing appliance-specific. Slow and
-   network-bound. Only the package list, the dpkg excludes, or a `K3S_VERSION`
-   bump should ever rebuild it.
+   — stock Ubuntu via mmdebstrap and nothing else: no vendored binaries, no
+   appliance config. Slow and network-bound. Only the package list or the dpkg
+   excludes should ever rebuild it — notably **not** a `K3S_VERSION` bump.
 3. **Payload rootfs** (`scripts/build-rootfs.sh` → `appliance-rootfs-$ARCH.tar.zst`)
    → packed by `make-image.sh` into an ext4 partition image
    (`rootfs-$ARCH.raw.zst`) — the base with everything that makes it an
-   appliance applied on top: `rootfs/overlay/` and `rootfs/rootfs.d/`. No apt,
-   no network, seconds rather than minutes. **This image is also what
+   appliance applied on top: `rootfs/overlay/` and `rootfs/rootfs.d/`, the
+   latter including the vendored k3s binary (`05-vendor.sh`). No apt, no
+   network, seconds rather than minutes. **This image is also what
    systemd-sysupdate writes into the inactive slot on A/B updates** — install
    and update share one artifact.
 4. **Plain files on the ISO** (`installer/install.sh`, `installer/installer.d/`,
@@ -164,7 +164,8 @@ Rebuild cost by what you touched:
 |---|---|
 | `installer/install.sh`, `installer.d/*`, `firstboot.sh`, `firstboot.d/*` | `make iso` only |
 | `rootfs/overlay/*`, `rootfs/rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
-| package list in `build-base-rootfs.sh`, `K3S_VERSION` | `make base` → `rootfs` → `image` → `iso` |
+| `K3S_VERSION` bump (re-fetch, then re-install the binary) | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
+| package list / dpkg excludes in `build-base-rootfs.sh` | `make base` → `rootfs` → `image` → `iso` |
 | kernel/live tooling in `build-live.sh` | `make live` → `iso` |
 
 ## Boot flow (install → firstboot → steady state)
@@ -211,15 +212,24 @@ an A/B update).
 ### Air-gap image path (never enters a rootfs)
 
 The k3s binary and its air-gap images are both vendored, but they travel by
-completely different routes. The binary is baked into the base rootfs; the
-images ride the ISO as plain files and land on `/data`:
+completely different routes. The binary is installed into the payload rootfs by
+`rootfs.d/05-vendor.sh`; the images ride the ISO as plain files and land on
+`/data`:
 
 ```
-scripts/fetch-k3s.sh          →  vendor/k3s/$ARCH/images/k3s-airgap-images-$ARCH.tar.zst
-scripts/make-iso.sh:132-135   →  /k3s-images/ on the ISO
-installer.d/60-airgap.sh      →  /data/k3s-images/        (data partition, at install)
-firstboot.d/10-k3s.sh         →  /data/k3s/agent/images/  (where k3s imports them)
+scripts/fetch-k3s.sh   →  vendor/k3s/$ARCH/images/k3s-airgap-images-$ARCH-$K3S_VERSION.tar.zst
+scripts/make-iso.sh    →  /k3s-images/ on the ISO
+installer.d/60-airgap  →  /data/k3s-images/        (data partition, at install)
+firstboot.d/10-k3s.sh  →  /data/k3s/agent/images/  (where k3s imports them)
 ```
+
+Vendored downloads carry `K3S_VERSION` in their filenames — the artifact is its
+own fetch stamp, so there is no marker file to drift, and old versions stay in
+`vendor/` (switching `K3S_VERSION` back and forth costs no re-download).
+Because several versions coexist there, anything reading `vendor/` must name the
+pinned file rather than glob: `make-iso.sh` and `rootfs.d/05-vendor.sh` both do.
+`05-vendor.sh` drops the version when installing, so the appliance always has a
+plain `/usr/local/bin/k3s` and the units need no version-aware paths.
 
 The rootfs carries the k3s *binary*; `/data` carries the *images*. Because they
 are ISO-plain-files, swapping the image tarballs costs an ISO repack only — no

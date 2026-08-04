@@ -26,9 +26,11 @@ LIVE_TAR    := $(BUILD)/live-rootfs-$(ARCH).tar.zst
 ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
 ISO         := $(BUILD)/appliance-$(ARCH).iso
-K3S_BIN     := vendor/k3s/$(ARCH)/bin/k3s
-K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH).tar.zst
-K3S_STAMP   := vendor/k3s/$(ARCH)/.fetched-$(K3S_VERSION)
+# Vendored downloads carry K3S_VERSION in their filenames: the artifact IS the
+# stamp, so a version bump makes these targets "missing" and triggers a fetch.
+# Old versions stay on disk, so switching back and forth costs no re-download.
+K3S_BIN     := vendor/k3s/$(ARCH)/bin/k3s-$(K3S_VERSION)
+K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH)-$(K3S_VERSION).tar.zst
 
 # Scripts/units that get baked into the images or packed onto the ISO —
 # editing them must trigger the right rebuild/repack. The rootfs overlay and
@@ -48,18 +50,27 @@ all: iso
 deps:
 	sudo ./scripts/install-build-deps.sh
 
-# The stamp carries K3S_VERSION in its name, so a version bump makes it
-# "missing" and triggers a re-fetch (which wipes the old vendor/k3s/$(ARCH)).
-$(K3S_BIN) $(K3S_IMAGES) $(K3S_STAMP) &: scripts/fetch-k3s.sh
+# Deliberately NO prerequisite on scripts/fetch-k3s.sh: these are version-pinned
+# downloads, not build outputs derived from the script's text. Depending on the
+# script meant every edit to it re-ran the fetch — and since the script's
+# "already fetched" path exits without touching the outputs, they stayed older
+# than the script and make re-ran it on EVERY invocation. With no prerequisites
+# make runs this only when a target is genuinely missing — the script itself has
+# no "already fetched" check, since that decision lives here. To force a
+# re-fetch, run `K3S_VERSION=$(K3S_VERSION) ./scripts/fetch-k3s.sh` directly (or
+# `rm -rf vendor`, see distclean).
+$(K3S_BIN) $(K3S_IMAGES) &:
 	./scripts/fetch-k3s.sh
 
-# Slow half: mmdebstrap from the network. Only the package list, the dpkg
-# excludes and the vendored k3s binary feed it.
-$(BASE_TAR): $(K3S_BIN) scripts/build-base-rootfs.sh
+# Slow half: mmdebstrap from the network. Only the package list and the dpkg
+# excludes feed it — deliberately NOT $(K3S_BIN), so a K3S_VERSION bump does
+# not cost a full bootstrap.
+$(BASE_TAR): scripts/build-base-rootfs.sh
 	./scripts/build-base-rootfs.sh
 
-# Fast half: no network, seconds. Everything appliance-specific lands here.
-$(ROOTFS_TAR): $(BASE_TAR) $(ROOTFS_OVERLAY) $(ROOTFS_STEPS) scripts/build-rootfs.sh
+# Fast half: no network, seconds. Everything appliance-specific lands here,
+# including the vendored k3s binary (rootfs.d/05-vendor.sh).
+$(ROOTFS_TAR): $(BASE_TAR) $(K3S_BIN) $(ROOTFS_OVERLAY) $(ROOTFS_STEPS) scripts/build-rootfs.sh
 	./scripts/build-rootfs.sh
 
 $(LIVE_TAR): installer/installer-run.sh units/installer.service scripts/build-live.sh

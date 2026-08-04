@@ -45,7 +45,7 @@ limactl shell builder
 
 ```bash
 make iso              # full pipeline: fetch → rootfs + live → image → iso
-make base             # just the base rootfs tarball (Ubuntu + vendored bins)
+make base             # just the base rootfs tarball (stock Ubuntu only)
 make rootfs           # payload rootfs tarball (base + rootfs/overlay + rootfs.d)
 make live             # just the micro live (installer) rootfs tarball
 make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
@@ -115,7 +115,8 @@ Iteration cost by change:
 |--------|---------|
 | firstboot / installer script | `make iso` — squashfs of the micro live + repack (fast) |
 | payload unit, config file, admin user | `make rootfs` → `image` → `iso` (no mmdebstrap) |
-| payload package, k3s version | `make base` (slow, rare) → `rootfs` → `image` → `iso` |
+| k3s version bump | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
+| payload package | `make base` (slow, rare) → `rootfs` → `image` → `iso` |
 | kernel / live tooling | `make live` → `iso` |
 
 ## Configuration

@@ -41,7 +41,9 @@ OUTPUT="${1:-$BUILD/appliance-rootfs-$ARCH.tar.zst}"
 
 OVERLAY="${OVERLAY:-rootfs/overlay}"
 STEPS_DIR="${STEPS_DIR:-rootfs/rootfs.d}"
-export OVERLAY
+# Steps read these from the environment (05-vendor.sh needs ARCH to find the
+# right vendor/ subdir), matching the installer.d/firstboot.d convention.
+export OVERLAY ARCH
 
 # Baked-in admin account, consumed by rootfs.d/10-admin-user.sh. Same
 # credentials on every box built with these values — fine for the demo phase,

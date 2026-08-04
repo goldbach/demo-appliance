@@ -1,12 +1,13 @@
 #!/bin/bash
-# Builds the base rootfs tarball using mmdebstrap: stock Ubuntu plus the
-# vendored third-party binaries, and nothing appliance-specific. This is the
-# slow, network-bound half of the payload build — everything that makes it an
-# *appliance* (units, hostname, admin user, presets) is applied on top by
-# build-rootfs.sh, which needs no network and runs in seconds.
+# Builds the base rootfs tarball using mmdebstrap: stock Ubuntu and nothing
+# else. This is the slow, network-bound half of the payload build — everything
+# that makes it an *appliance* (vendored binaries, units, hostname, admin user,
+# presets) is applied on top by build-rootfs.sh, which needs no network and
+# runs in seconds.
 #
-# Rebuild this only when the package list, the dpkg excludes, or K3S_VERSION
-# change. The installer/live environment is a separate build — see build-live.sh.
+# Rebuild this only when the package list or the dpkg excludes change. Note a
+# K3S_VERSION bump does NOT need it: the k3s binary is installed by
+# rootfs/rootfs.d/05-vendor.sh in the customization layer. The installer/live environment is a separate build — see build-live.sh.
 # Runs unprivileged via user namespaces (--mode=unshare).
 # The .tar.zst extension makes mmdebstrap emit a zstd-compressed tarball;
 # downstream tar -x/-t auto-detect the compression.
@@ -56,13 +57,6 @@ log() { echo "[build-base-rootfs] $*"; }
 export TMPDIR="${TMPDIR:-/var/tmp}"
 mkdir -p "$BUILD"
 
-# Vendored third-party binaries. These are not built from anything in this repo
-# — fetch-k3s.sh downloads and sha256-verifies them into vendor/ at the pinned
-# K3S_VERSION. They live in the base layer rather than the overlay because they
-# are large and change only on a deliberate version bump.
-VENDOR_K3S="vendor/k3s/$ARCH/bin/k3s"
-[ -x "$VENDOR_K3S" ] || { log "ERROR: missing $VENDOR_K3S (run 'make fetch')"; exit 1; }
-
 # shellcheck disable=SC2016
 mmdebstrap \
     --mode=unshare \
@@ -74,8 +68,6 @@ mmdebstrap \
     --dpkgopt='path-exclude=/usr/share/locale/*' \
     --dpkgopt='path-include=/usr/share/locale/locale.alias' \
     --dpkgopt='path-exclude=/usr/share/doc/*' \
-    --customize-hook='mkdir -p "$1/usr/local/bin"' \
-    --customize-hook="copy-in $VENDOR_K3S /usr/local/bin/" \
     --customize-hook='chroot "$1" update-initramfs -u' \
     "$SUITES" "$OUTPUT" "$MIRROR"
 
