@@ -5,8 +5,19 @@
 # Local equivalent of boot-proxmox.sh, for Apple Silicon Macs: no Secure Boot
 # semantics here (there's no Microsoft-key-enrollment concept to emulate for
 # arm64 UEFI the way boot-proxmox.sh sets up for amd64) — this just boots the
-# ISO under UTM's QEMU backend (Virtualization.framework-accelerated) so you
-# can eyeball the installer + firstboot run without leaving your Mac.
+# ISO under UTM's QEMU backend (accelerated by Hypervisor.framework, HVF) so
+# you can eyeball the installer + firstboot run without leaving your Mac.
+#
+# Not UTM's `backend:apple` (Virtualization.framework), which was tried and
+# doesn't work for this: VZ runs in-process inside the sandboxed UTM app,
+# whereas QEMU runs in a helper process, so a script-created VM has no
+# security-scoped bookmark for an ISO living in the repo and the VM dies at
+# start with 'Cannot access resource: .../build/appliance-arm64.iso'
+# (OSStatus -2700). The GUI avoids this only because its file picker grants
+# the bookmark, which a throwaway per-run VM can't obtain. Working around it
+# would mean staging a copy of the ISO inside UTM's own container — not worth
+# it. Note also that an apple configuration has no `architecture`, no
+# `machine`, no `uefi` toggle, no GPU model and no qemu-args escape hatch.
 #
 # Must run directly on the Mac host, NOT inside `limactl shell builder`:
 # UTM.app / utmctl are host-only GUI-app tooling with no path from the Lima
@@ -51,7 +62,7 @@ UTMCTL=/Applications/UTM.app/Contents/MacOS/utmctl
 [ -x "$UTMCTL" ] || { echo "ERROR: UTM.app not found at /Applications/UTM.app" >&2; exit 2; }
 
 # UTM on Apple Silicon only accelerates the host's own architecture
-# (Virtualization.framework); an amd64 guest here would run under QEMU's
+# (Hypervisor.framework); an amd64 guest here would run under QEMU's
 # TCG software emulation with no Rosetta-style speedup (Rosetta only
 # translates Linux userspace binaries inside Lima, not whole-system QEMU
 # emulation) — impractically slow. Use `make boot`/`boot-headless` inside
