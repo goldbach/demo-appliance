@@ -15,14 +15,14 @@
 #
 # Runs unprivileged under a single fakeroot session — the same idiom as
 # make-image.sh and make-iso.sh, and for the same reason: extraction, the
-# customization steps, and the repack must all see one fake-ownership database,
-# or root-owned files silently collapse to the build user (the uid-501 bug,
-# commit 9b80098). Two fakeroot invocations would each start an empty one.
+# customization steps, and the repack all share one fake-ownership database,
+# which is what keeps root-owned files root-owned (the uid-501 bug, commit
+# 9b80098). Each fakeroot invocation starts that database empty, hence one.
 #
-# Steps must therefore never chroot: fakeroot cannot follow them in. Use the
-# --prefix/--root flags that shadow-utils and systemctl provide instead. This
-# is also what lets an amd64 payload be customized on an arm64 builder without
-# involving Rosetta binfmt at all.
+# Steps therefore stay inside that session, using the --prefix/--root flags
+# shadow-utils and systemctl provide (fakeroot cannot follow a chroot). That is
+# also what lets an amd64 payload be customized on an arm64 builder with no
+# Rosetta binfmt involved.
 #
 # Usage: ./scripts/build-rootfs.sh [output.tar.zst]
 set -euo pipefail
@@ -90,9 +90,9 @@ for step in "$STEPS_DIR"/*.sh; do
 done
 shopt -u nullglob
 
-# --numeric-owner: store ids, not names. The build host's /etc/passwd has no
-# bearing on the target's, and downstream make-image.sh extracts with a plain
-# `tar -xf` that would otherwise re-resolve names against the host.
+# --numeric-owner records ids rather than names, so the ids survive intact
+# through make-image.sh's plain `tar -xf`, independent of the build host's
+# /etc/passwd.
 log "packing $OUTPUT"
 tar -C "$ROOT" --numeric-owner -cf - . | zstd -T0 -"$ZSTD_LEVEL" -f -o "$OUTPUT"
 

@@ -4,7 +4,7 @@
 # the two halves take different routes: rootfs/rootfs.d/05-vendor.sh installs
 # the *binary* into the payload rootfs, while make-iso.sh puts the *images* on
 # the ISO as plain files (installer.d/60-airgap.sh then writes them to /data).
-# Air-gap images are deliberately never baked into a rootfs — see TODO.md.
+# Air-gap images stay out of the rootfs — see TODO.md.
 #
 # Normally invoked by make, which skips it entirely when the versioned files
 # already exist. Running it directly always re-downloads — that is the way to
@@ -27,16 +27,12 @@ esac
 
 log() { echo "[fetch-k3s] $*"; }
 
-# The installed artifacts carry the version in their filenames, so they are
-# their own stamp — no separate marker file to drift out of sync. Old versions
-# are kept: switching K3S_VERSION back and forth costs no re-download.
+# The version in each filename doubles as the fetch stamp, and old versions are
+# kept, so switching K3S_VERSION back and forth costs no re-download.
 #
-# There is deliberately no "already fetched, skipping" guard here: deciding
-# whether a fetch is needed is the Makefile's job (these paths are its targets,
-# and it runs this recipe only when one is missing). Keeping a second copy of
-# that decision in here would mean two mechanisms answering the same question.
-# So this script is unconditional, which also makes running it directly the
-# natural way to force a re-fetch.
+# This script always fetches; the Makefile owns the decision of when to run it,
+# and its rule depends on this file, so the recipe must always write its
+# outputs. Running it directly is therefore how you force a re-fetch.
 BIN_OUT="$VENDOR/bin/k3s-$K3S_VERSION"
 IMAGES_OUT="$VENDOR/images/k3s-airgap-images-$ARCH-$K3S_VERSION.tar.zst"
 
@@ -44,10 +40,9 @@ mkdir -p "$VENDOR/bin" "$VENDOR/images"
 
 log "Version: $K3S_VERSION ($ARCH)"
 
-# Staging dir, not $VENDOR itself: upstream asset names are fixed (sha256sum
-# looks files up by name) but $VENDOR now holds several versions side by side,
-# so downloading flat into it would collide. A partial or failed download is
-# also discarded here rather than left half-written next to good artifacts.
+# Stage in a temp dir: sha256sum looks files up by their fixed upstream names,
+# while $VENDOR holds several versions side by side. It also keeps a partial or
+# failed download away from the verified artifacts.
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/fetch-k3s.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 

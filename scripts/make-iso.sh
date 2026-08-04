@@ -130,8 +130,8 @@ cp -r firstboot/firstboot.d "$ISO_ROOT/installer/"
 chmod 0755 "$ISO_ROOT/installer/firstboot.d"/*.sh
 
 # --- k3s air-gap images (copied to /data by install.sh) ---
-# The exact pinned file, NOT a glob: vendor/ keeps every version ever fetched,
-# and a glob would ship all of them (~217 MB each) onto the ISO.
+# vendor/ keeps every version ever fetched, so name the pinned file exactly —
+# these are ~217 MB each.
 K3S_IMAGES="vendor/k3s/$ARCH/images/k3s-airgap-images-$ARCH-$K3S_VERSION.tar.zst"
 if [ -f "$K3S_IMAGES" ]; then
     mkdir -p "$ISO_ROOT/k3s-images"

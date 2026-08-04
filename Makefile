@@ -35,7 +35,7 @@ K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH)-$(K3S_VERSION
 # Scripts/units that get baked into the images or packed onto the ISO —
 # editing them must trigger the right rebuild/repack. The rootfs overlay and
 # step scripts hang off $(ROOTFS_TAR) only: they are applied by the fast
-# customization layer, so touching them must never re-run mmdebstrap.
+# customization layer, so touching them stays on the fast path.
 ROOTFS_OVERLAY := $(shell find rootfs/overlay -type f 2>/dev/null)
 ROOTFS_STEPS   := $(wildcard rootfs/rootfs.d/*.sh)
 ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
@@ -50,21 +50,18 @@ all: iso
 deps:
 	sudo ./scripts/install-build-deps.sh
 
-# Deliberately NO prerequisite on scripts/fetch-k3s.sh: these are version-pinned
-# downloads, not build outputs derived from the script's text. Depending on the
-# script meant every edit to it re-ran the fetch — and since the script's
-# "already fetched" path exits without touching the outputs, they stayed older
-# than the script and make re-ran it on EVERY invocation. With no prerequisites
-# make runs this only when a target is genuinely missing — the script itself has
-# no "already fetched" check, since that decision lives here. To force a
-# re-fetch, run `K3S_VERSION=$(K3S_VERSION) ./scripts/fetch-k3s.sh` directly (or
-# `rm -rf vendor`, see distclean).
-$(K3S_BIN) $(K3S_IMAGES) &:
+# The version lives in the filenames, so a K3S_VERSION bump makes these targets
+# missing and re-fetches, with no stamp file involved.
+#
+# fetch-k3s.sh always writes both outputs, which is what settles this rule after
+# a single run — keep it that way if you touch it. Editing the script re-fetches
+# (~12s) and cascades a payload/image/ISO rebuild, the price of catching a change
+# to what gets fetched.
+$(K3S_BIN) $(K3S_IMAGES) &: scripts/fetch-k3s.sh
 	./scripts/fetch-k3s.sh
 
-# Slow half: mmdebstrap from the network. Only the package list and the dpkg
-# excludes feed it — deliberately NOT $(K3S_BIN), so a K3S_VERSION bump does
-# not cost a full bootstrap.
+# Slow half: mmdebstrap from the network, fed only by the package list and the
+# dpkg excludes, so a K3S_VERSION bump stays on the fast path below.
 $(BASE_TAR): scripts/build-base-rootfs.sh
 	./scripts/build-base-rootfs.sh
 

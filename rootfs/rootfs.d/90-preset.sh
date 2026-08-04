@@ -10,7 +10,7 @@ ROOT="${1:?missing rootfs dir}"
 
 log() { echo "[90-preset] $*"; }
 
-# --root, not chroot: fakeroot cannot follow a chroot, and preset-all only
-# manipulates symlinks under the given tree, so the host systemctl is fine.
+# preset-all only manipulates symlinks under the given tree, so the host
+# systemctl with --root does the job and stays inside fakeroot.
 log "systemctl preset-all"
 systemctl preset-all --root="$ROOT"
