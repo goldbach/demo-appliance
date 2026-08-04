@@ -1,12 +1,16 @@
 [Unit]
 Description=First-boot node configuration
-After=local-fs.target network.target
+After=local-fs.target network.target data.mount
+# 10-k3s.sh stages air-gap images into /data; without this it would silently
+# write to the pre-mount directory on the rootfs.
+Requires=data.mount
 ConditionPathExists=/etc/appliance/machine.conf
 # Removed by firstboot.sh after successful run
 ConditionPathExists=!/var/lib/appliance/firstboot-done
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/mkdir -p /var/lib/appliance
 ExecStart=/usr/lib/appliance/firstboot.sh
 ExecStartPost=/bin/touch /var/lib/appliance/firstboot-done
 RemainAfterExit=yes

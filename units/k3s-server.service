@@ -2,8 +2,10 @@
 Description=k3s Kubernetes server
 After=network-online.target
 Wants=network-online.target
-# Ensure data partition is mounted before k3s starts
+# Ensure data partition is mounted before k3s starts. Requires= alone does not
+# imply ordering, hence the explicit After=.
 Requires=data.mount
+After=data.mount
 
 [Service]
 Type=notify
