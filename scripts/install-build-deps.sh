@@ -11,6 +11,7 @@ apt-get install -y --no-install-recommends \
     squashfs-tools \
     zstd \
     curl \
+    openssl \
     ca-certificates \
     make \
     dosfstools \
