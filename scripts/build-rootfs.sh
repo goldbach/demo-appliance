@@ -47,13 +47,6 @@ STEPS_DIR="${STEPS_DIR:-rootfs/build-rootfs.d}"
 # right vendor/ subdir), matching the installer.d/firstboot.d convention.
 export OVERLAY ARCH
 
-# Baked-in admin account, consumed by build-rootfs.d/10-admin-user.sh. Same
-# credentials on every box built with these values — fine for the demo phase,
-# see TODO "Baked-in admin user".
-ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-appliance}"
-export ADMIN_USERNAME ADMIN_PASSWORD
-
 # The payload tar is an intermediate: make-image.sh decompresses it immediately
 # and re-compresses the finished ext4 image at -9. Only that image ships on the
 # ISO, so spending time compressing this one buys nothing.

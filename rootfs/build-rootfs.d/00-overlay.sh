@@ -20,9 +20,8 @@ log() { echo "[00-overlay] $*"; }
 log "copying $OVERLAY -> $ROOT"
 tar -C "$OVERLAY" --owner=0 --group=0 -cf - . | tar -C "$ROOT" --no-overwrite-dir -xf -
 
-# git cannot track empty directories, so /data is created here rather than
-# living in the overlay — it is the mountpoint for the data partition
-# (see installer.d/50-config.sh). Explicit -m holds it at 0755 regardless of
-# the build user's umask.
+# git cannot track empty directories, so /data is created here — it is the
+# mountpoint for the data partition (see installer.d/50-config.sh). Explicit -m
+# holds it at 0755 regardless of the build user's umask.
 log "creating empty dirs"
 install -d -m 0755 "$ROOT/data"

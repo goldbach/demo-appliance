@@ -6,18 +6,20 @@
 set -euo pipefail
 
 ROOT="${1:?missing rootfs dir}"
-ADMIN_USERNAME="${ADMIN_USERNAME:?missing ADMIN_USERNAME}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:?missing ADMIN_PASSWORD}"
+
+# Overridable from the environment:
+#   ADMIN_PASSWORD=hunter2 make rootfs
+ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-appliance}"
 
 log() { echo "[10-admin-user] $*"; }
 
 # --prefix edits the /etc/* files under the target tree directly, which fakeroot
 # can follow and which works when the payload arch differs from the builder's.
-# (shadow's --root chroots instead.)
 #
-# The hash is computed here and passed to useradd -p. chpasswd --prefix would
-# read better but is not portable enough: it works on the Lima builder
-# (Ubuntu 26.04, shadow 4.17) and fails on the GitHub runner (Ubuntu 24.04).
+# Hashing here and passing to useradd -p keeps this working across every shadow
+# release the build runs on — Ubuntu 24.04 on the GitHub runner through 26.04
+# on the Lima builder.
 log "creating $ADMIN_USERNAME (group sudo)"
 ADMIN_HASH=$(echo "$ADMIN_PASSWORD" | openssl passwd -6 -stdin)
 useradd --prefix "$ROOT" -m -s /bin/bash -G sudo -p "$ADMIN_HASH" "$ADMIN_USERNAME"
