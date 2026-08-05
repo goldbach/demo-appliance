@@ -1,5 +1,5 @@
 [Unit]
-Description=k3s Kubernetes agent
+Description=k3s Kubernetes worker
 After=network-online.target
 Wants=network-online.target
 # Requires= alone does not imply ordering, hence the explicit After=.

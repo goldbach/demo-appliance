@@ -169,7 +169,7 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
 - Unit enablement out of firstboot: `systemctl enable` writes into the
   *slot's* `/etc`, so slot B would boot with no k3s. Instead enable **both**
   k3s units in the image and gate with
-  `ConditionPathExists=/data/appliance/role.server` / `role.agent`;
+  `ConditionPathExists=/data/appliance/role.server` / `role.worker`;
   firstboot just writes the role stamp.
 - Fixed (2026-07-29): airgap images were copied to
   `/var/lib/rancher/k3s/agent/images` (default data-dir, i.e. the per-slot
@@ -241,7 +241,7 @@ directory; the ISO now carries only `rootfs.raw.zst`.
 
 **What that costs:** the file is the only genuinely per-node input
 (`ROLE`, `CLUSTER_INIT`, `SERVER_URL`, `CLUSTER_TOKEN`), and it is no longer
-editable without a rebuild. Installing an *agent* means editing the heredoc and
+editable without a rebuild. Installing a *worker* means editing the heredoc and
 running `make live` + `iso`. Acceptable for the demo phase, not for the field.
 
 **Way forward — resolve at install time, in priority order:**
@@ -249,7 +249,7 @@ running `make live` + `iso`. Acceptable for the demo phase, not for the field.
 1. **Kernel cmdline** — `appliance.role=`, `appliance.cluster-init=`,
    `appliance.server=`, `appliance.token=`. Gives PXE a config channel it does
    not have today (there is no medium to read), and lets one image produce both
-   servers and agents.
+   servers and workers.
 2. **A `machine.conf` on the installer medium**, if present — restores the
    edit-the-USB-stick workflow for the ISO/USB case.
 3. **Built-in defaults** — what 50-config.sh writes today, so a bare boot with

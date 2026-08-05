@@ -1,6 +1,6 @@
 #!/bin/bash
 # First-boot step: configure k3s for the node's role and start it.
-# Expects ROLE (server|agent), CLUSTER_INIT, SERVER_URL and CLUSTER_TOKEN
+# Expects ROLE (server|worker), CLUSTER_INIT, SERVER_URL and CLUSTER_TOKEN
 # in the environment (exported by firstboot.sh from machine.conf).
 set -euo pipefail
 
@@ -41,14 +41,14 @@ EOF
         fi
         systemctl enable --now k3s-server.service
         ;;
-    agent)
-        log "Joining cluster as agent..."
+    worker)
+        log "Joining cluster as worker..."
         cat > "$K3S_CONFIG" <<EOF
 server: "${SERVER_URL}"
 token: "${CLUSTER_TOKEN}"
 data-dir: /data/k3s
 EOF
-        systemctl enable --now k3s-agent.service
+        systemctl enable --now k3s-worker.service
         ;;
     *)
         log "ERROR: unknown role '$ROLE'"

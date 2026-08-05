@@ -1,4 +1,4 @@
 # Both k3s units ship disabled; firstboot.d/10-k3s.sh enables exactly one of
 # them based on ROLE in /etc/appliance/machine.conf.
 disable k3s-server.service
-disable k3s-agent.service
+disable k3s-worker.service

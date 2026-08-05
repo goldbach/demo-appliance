@@ -8,7 +8,7 @@ A shell-script/Makefile pipeline that builds a minimal Ubuntu 26.04 ("resolute")
 appliance image bundling [k3s](https://k3s.io/), for amd64 and arm64. There is
 no application source code here — everything is bash, Make, and mmdebstrap
 customize-hooks. Output is a Secure Boot-capable installer ISO that partitions
-a disk, writes a node OS image, and configures k3s (server or agent) on first
+a disk, writes a node OS image, and configures k3s (server or worker) on first
 boot.
 
 ## Build environment
@@ -217,10 +217,10 @@ Rebuild cost by what you touched:
    runs `firstboot.sh`, which sources `machine.conf` (`ROLE`, `CLUSTER_INIT`,
    `SERVER_URL`, `CLUSTER_TOKEN`) into the environment and runs
    `firstboot.d/10-k3s.sh`, which writes `/etc/rancher/k3s/config.yaml` for
-   the node's role and enables `k3s-server.service` or `k3s-agent.service`.
+   the node's role and enables `k3s-server.service` or `k3s-worker.service`.
    Firstboot then disables itself.
 
-`k3s-server.service`/`k3s-agent.service` both use `data-dir: /data/k3s` — air-gap
+`k3s-server.service`/`k3s-worker.service` both use `data-dir: /data/k3s` — air-gap
 images must land in `/data/k3s/agent/images`, **not** the k3s default
 `/var/lib/rancher/k3s/...` (that path is per-slot rootfs and wouldn't survive
 an A/B update).

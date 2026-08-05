@@ -18,7 +18,7 @@ UUID=$DATA_UUID  /data      ext4  defaults,x-systemd.makefs      0 2
 EOF
 
 # Demo default: a single-node server with a placeholder token. Installing an
-# agent, or setting a real token, currently means editing this heredoc and
+# worker, or setting a real token, currently means editing this heredoc and
 # rebuilding the live env — see TODO "machine.conf: resolve from the kernel
 # cmdline" for the intended replacement.
 log "Writing machine config..."
@@ -27,11 +27,11 @@ install -m 0600 /dev/null /mnt/etc/appliance/machine.conf
 cat > /mnt/etc/appliance/machine.conf <<'EOF'
 # Written by installer.d/50-config.sh. Consumed by firstboot.sh.
 
-# Role of this node: server | agent
+# Role of this node: server | worker
 ROLE=server
 
 # Set to true only on the first server node in a new cluster.
-# All subsequent nodes (servers and agents) set this to false.
+# All subsequent nodes (servers and workers) set this to false.
 CLUSTER_INIT=true
 
 # URL of the first server node. Required when CLUSTER_INIT=false.
