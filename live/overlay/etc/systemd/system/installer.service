@@ -1,0 +1,24 @@
+[Unit]
+Description=Appliance Field Installer
+ConditionKernelCommandLine=boot=live
+After=local-fs.target
+# Keep login prompts off the installer's console. Logins are useless in the
+# live env anyway (no accounts with passwords).
+Conflicts=getty@tty1.service serial-getty@ttyS0.service serial-getty@ttyAMA0.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/appliance/installer-entrypoint.sh
+# /dev/console follows the last console= kernel parameter — ttyS0 (amd64) /
+# ttyAMA0 (arm64) on our ISOs — so the installer appears where the operator
+# is actually watching, including qemu -nographic.
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/console
+TTYReset=yes
+TTYVHangup=yes
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

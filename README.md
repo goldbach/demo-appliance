@@ -47,7 +47,8 @@ limactl shell builder
 make iso              # full pipeline: fetch → rootfs + live → image → iso
 make base             # just the base rootfs tarball (stock Ubuntu only)
 make rootfs           # payload rootfs tarball (base + rootfs/overlay + rootfs.d)
-make live             # just the micro live (installer) rootfs tarball
+make live-base        # just the live base tarball (Ubuntu + kernel + live-boot)
+make live             # live rootfs tarball (live base + live/overlay + live.d)
 make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
 make boot-headless    # same on serial/stdio — the ISO's default grub entry
                       # is display-primary now, so pick "serial console"
@@ -117,7 +118,8 @@ Iteration cost by change:
 | payload unit, config file, admin user | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | k3s version bump | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
 | payload package | `make base` (slow, rare) → `rootfs` → `image` → `iso` |
-| kernel / live tooling | `make live` → `iso` |
+| live overlay / installer entry point | `make live` → `iso` (no mmdebstrap) |
+| kernel / live package list | `make live-base` → `live` → `iso` |
 
 ## Configuration
 
@@ -125,7 +127,9 @@ Iteration cost by change:
 |------|---------|
 | `Makefile` | Build targets and package list |
 | `builder.yaml` | Lima VM config (ARM64 VZ + Rosetta, 4 CPU, 8GB RAM, 40GB disk) |
-| `installer/` | Installer entrypoint + `installer.service` + `installer.d/` install steps (disk, bootloader, config) |
+| `installer/` | `install.sh` + `installer.d/` install steps (disk, bootloader, config) — plain files on the ISO |
+| `live/overlay/` | File tree copied into the live rootfs as-is (installer entrypoint + unit, hostname, networkd) |
+| `live/live.d/` | Live env customization steps, glob order (overlay copy, presets) |
 | `firstboot/` | First-boot entry point + `firstboot.d/` node-setup steps (k3s role) |
 | `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, hostname, networkd, presets) |
 | `rootfs/rootfs.d/` | Payload customization steps, glob order (overlay copy, admin user, presets) |

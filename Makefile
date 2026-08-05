@@ -20,9 +20,10 @@ export K3S_VERSION ARCH ARCH_KERNEL
 # up to date (e.g. a truncated tarball from an interrupted mmdebstrap).
 .DELETE_ON_ERROR:
 
-BASE_TAR    := $(BUILD)/base-rootfs-$(ARCH).tar.zst
-ROOTFS_TAR  := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
-LIVE_TAR    := $(BUILD)/live-rootfs-$(ARCH).tar.zst
+BASE_TAR      := $(BUILD)/base-rootfs-$(ARCH).tar.zst
+ROOTFS_TAR    := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
+LIVE_BASE_TAR := $(BUILD)/live-base-rootfs-$(ARCH).tar.zst
+LIVE_TAR      := $(BUILD)/live-rootfs-$(ARCH).tar.zst
 ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
 ROOTFS_ZST  := $(ROOTFS_RAW).zst
 ISO         := $(BUILD)/appliance-$(ARCH).iso
@@ -38,11 +39,13 @@ K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH)-$(K3S_VERSION
 # customization layer, so touching them stays on the fast path.
 ROOTFS_OVERLAY := $(shell find rootfs/overlay -type f 2>/dev/null)
 ROOTFS_STEPS   := $(wildcard rootfs/rootfs.d/*.sh)
+LIVE_OVERLAY   := $(shell find live/overlay -type f 2>/dev/null)
+LIVE_STEPS     := $(wildcard live/live.d/*.sh)
 ISO_SCRIPTS   := installer/install.sh $(wildcard installer/installer.d/*.sh) \
                  firstboot/firstboot.sh $(wildcard firstboot/firstboot.d/*.sh) \
                  firstboot/machine.conf.example
 
-.PHONY: all deps fetch live base rootfs image iso iso-info clean distclean clean-iso clean-live clean-base clean-rootfs boot boot-headless boot-proxmox
+.PHONY: all deps fetch live-base live base rootfs image iso iso-info clean distclean clean-iso clean-live-base clean-live clean-base clean-rootfs boot boot-headless boot-proxmox
 
 all: iso
 
@@ -70,7 +73,11 @@ $(BASE_TAR): scripts/build-base-rootfs.sh
 $(ROOTFS_TAR): $(BASE_TAR) $(K3S_BIN) $(ROOTFS_OVERLAY) $(ROOTFS_STEPS) scripts/build-rootfs.sh
 	./scripts/build-rootfs.sh
 
-$(LIVE_TAR): installer/installer-entrypoint.sh installer/installer.service scripts/build-live.sh
+# Same split as the payload above: mmdebstrap once, customization on top.
+$(LIVE_BASE_TAR): scripts/build-live-base.sh
+	./scripts/build-live-base.sh
+
+$(LIVE_TAR): $(LIVE_BASE_TAR) $(LIVE_OVERLAY) $(LIVE_STEPS) scripts/build-live.sh
 	./scripts/build-live.sh
 
 $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh
@@ -82,6 +89,7 @@ $(ISO): $(LIVE_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) $(ISO_SCRIPTS) ./scripts/make-is
 # Convenience aliases (for manual runs)
 
 fetch: $(K3S_BIN) $(K3S_IMAGES)
+live-base: $(LIVE_BASE_TAR)
 live: $(LIVE_TAR)
 base: $(BASE_TAR)
 rootfs: $(ROOTFS_TAR)
@@ -100,6 +108,9 @@ distclean: clean
 
 clean-iso:
 	rm -f $(ISO)
+
+clean-live-base:
+	rm -f $(LIVE_BASE_TAR)
 
 clean-live:
 	rm -f $(LIVE_TAR)

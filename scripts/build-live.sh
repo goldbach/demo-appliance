@@ -1,66 +1,92 @@
 #!/bin/bash
-# Builds the micro live rootfs tarball using mmdebstrap: the minimal
-# environment that boots the installer ISO and runs installer-entrypoint.sh.
-# The appliance payload (what lands on disk) is build-rootfs.sh — this one
-# only needs to see the install disk and run the installer steps.
-# Runs unprivileged via user namespaces (--mode=unshare).
+# Builds the micro live rootfs tarball: the minimal environment that boots the
+# installer ISO and runs installer-entrypoint.sh.
+#
+# This is the *customization* layer. It takes the base tarball built by
+# build-live-base.sh (Ubuntu + kernel + live-boot) and applies everything that
+# makes it the installer environment. No apt, no network — editing the
+# installer entry point or its unit costs seconds here instead of a full
+# mmdebstrap.
+#
+# Customization comes from two places, in this order:
+#   live/overlay/   a file tree mirroring the target layout, copied in as-is
+#   live/live.d/    numbered scripts, run in glob order, each given the rootfs
+#                   directory as $1 (same signature as an mmdebstrap
+#                   --customize-hook, so steps can move between layers)
+#
+# Runs unprivileged under a single fakeroot session — the same idiom as
+# build-rootfs.sh, make-image.sh and make-iso.sh, and for the same reason:
+# extraction, the customization steps, and the repack all share one
+# fake-ownership database, which is what keeps root-owned files root-owned (the
+# uid-501 bug, commit 9b80098). Each fakeroot invocation starts that database
+# empty, hence one.
+#
+# Steps therefore stay inside that session, using the --prefix/--root flags
+# shadow-utils and systemctl provide (fakeroot cannot follow a chroot).
+#
+# The appliance payload (what lands on disk) is build-rootfs.sh — this one only
+# needs to see the install disk and run the installer steps.
 #
 # Usage: ./scripts/build-live.sh [output.tar.zst]
 set -euo pipefail
 
+# Set once we have re-executed ourselves inside the fakeroot session.
+INNER=0
+if [ "${1:-}" = "--inner" ]; then
+    INNER=1
+    shift
+fi
+
 BUILD="${BUILD:-build}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
+BASE="${LIVE_BASE_TAR:-$BUILD/live-base-rootfs-$ARCH.tar.zst}"
 OUTPUT="${1:-$BUILD/live-rootfs-$ARCH.tar.zst}"
-SUITES="resolute"
 
-# amd64 lives on archive.ubuntu.com; every other arch on ports.ubuntu.com
-case "$ARCH" in
-    amd64) MIRROR_URL="http://archive.ubuntu.com/ubuntu/" ;;
-    arm64) MIRROR_URL="http://ports.ubuntu.com/ubuntu-ports/" ;;
-    *) echo "[build-live] ERROR: unsupported ARCH '$ARCH' (amd64|arm64)" >&2; exit 1 ;;
-esac
-MIRROR="deb $MIRROR_URL $SUITES main restricted universe multiverse"
+OVERLAY="${OVERLAY:-live/overlay}"
+STEPS_DIR="${STEPS_DIR:-live/live.d}"
+export OVERLAY ARCH
 
-PACKAGES=(
-    # kernel / live boot. linux-firmware-minimal satisfies linux-image-generic's
-    # "linux-firmware | linux-firmware-minimal" dependency: the installer only
-    # needs to see disk + NIC, not GPU/wifi/bt firmware (~800 MB saved).
-    linux-image-generic linux-firmware-minimal initramfs-tools live-boot live-boot-initramfs-tools
-    # init / system
-    systemd systemd-resolved systemd-sysv udev dbus
-    # installer: partition, format, write rootfs image
-    parted dosfstools e2fsprogs zstd
-    # signed boot binaries — make-iso.sh extracts shim/grub/kernel/initrd
-    # from this tarball; grub is never run inside the live env itself
-    "grub-efi-${ARCH}-signed" shim-signed
-    # minimal ops: ps/free/sysctl
-    procps
-)
+# The live tar is an intermediate: make-iso.sh extracts it immediately, pulls
+# the kernel/initrd/shim/grub out of it and squashes the rest at zstd -9. Only
+# that squashfs ships on the ISO, so compressing this one hard buys nothing.
+ZSTD_LEVEL="${ZSTD_LEVEL:-1}"
 
 log() { echo "[build-live] $*"; }
 
 export TMPDIR="${TMPDIR:-/var/tmp}"
-mkdir -p "$BUILD"
 
-# shellcheck disable=SC2016
-mmdebstrap \
-    --mode=unshare \
-    --skip=check/qemu \
-    --variant=minbase \
-    --architectures="$ARCH" \
-    --include="${PACKAGES[*]}" \
-    --dpkgopt='path-exclude=/usr/share/man/*' \
-    --dpkgopt='path-exclude=/usr/share/locale/*' \
-    --dpkgopt='path-include=/usr/share/locale/locale.alias' \
-    --dpkgopt='path-exclude=/usr/share/doc/*' \
-    --customize-hook='mkdir -p "$1/etc/systemd/network" && printf "[Match]\nName=en* eth*\n\n[Network]\nDHCP=yes\n" > "$1/etc/systemd/network/20-wired.network"' \
-    --customize-hook='echo live-boot > "$1/etc/hostname"' \
-    --customize-hook='mkdir -p "$1/usr/lib/appliance"' \
-    --customize-hook='mkdir -p "$1/etc/systemd/system"' \
-    --customize-hook='copy-in installer/installer-entrypoint.sh /usr/lib/appliance/' \
-    --customize-hook='copy-in installer/installer.service /etc/systemd/system/' \
-    --customize-hook='chroot "$1" update-initramfs -u' \
-    --customize-hook='chroot "$1" systemctl preset-all' \
-    "$SUITES" "$OUTPUT" "$MIRROR"
+if [ "$INNER" = 0 ]; then
+    [ -f "$BASE" ] || { log "ERROR: missing live base rootfs $BASE (run 'make live-base')"; exit 1; }
+    [ -d "$OVERLAY" ] || { log "ERROR: missing overlay dir $OVERLAY"; exit 1; }
+    mkdir -p "$BUILD"
+
+    log "entering fakeroot"
+    exec fakeroot -- "$0" --inner "$OUTPUT"
+fi
+
+# --- Everything below runs inside the fakeroot session ---
+
+WORK=$(mktemp -d "$TMPDIR/build-live.XXXXXX")
+ROOT="$WORK/rootfs"
+mkdir -p "$ROOT"
+trap 'rm -rf "$WORK"' EXIT
+
+# /dev round-trips intact: fakeroot fakes the mknod on the way in and re-emits
+# the device nodes on the way out.
+log "extracting $BASE"
+tar -C "$ROOT" -xf "$BASE"
+
+shopt -s nullglob
+for step in "$STEPS_DIR"/*.sh; do
+    log "run $step"
+    "$step" "$ROOT"
+done
+shopt -u nullglob
+
+# --numeric-owner records ids rather than names, so the ids survive intact
+# through make-iso.sh's plain `tar -xf`, independent of the build host's
+# /etc/passwd.
+log "packing $OUTPUT"
+tar -C "$ROOT" --numeric-owner -cf - . | zstd -T0 -"$ZSTD_LEVEL" -f -o "$OUTPUT"
 
 log "Live rootfs tar: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"

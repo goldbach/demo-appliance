@@ -34,7 +34,8 @@ and run `sudo ./scripts/install-build-deps.sh` + subuid/subgid setup directly
 make iso              # full pipeline: fetch → rootfs + live → image → iso
 make base             # just the base rootfs tarball (Ubuntu + vendored bins)
 make rootfs           # payload rootfs tarball (base + rootfs/overlay + rootfs.d)
-make live             # just the micro live (installer) rootfs tarball
+make live-base        # just the live base tarball (Ubuntu + kernel + live-boot)
+make live             # live rootfs tarball (live base + live/overlay + live.d)
 make fetch            # download k3s binary + airgap images (vendor/k3s/$ARCH)
 make boot             # boot the built ISO in QEMU (UEFI, Secure Boot)
 make boot-headless    # same, serial console — pick "serial console" grub entry
@@ -80,7 +81,8 @@ disk, and the vCPU spins at ~100%. It reproduces on both grub entries, so it
 is not just the console-ordering flip. Not diagnosed further — the display
 paths above work, so this is a convenience gap, not a blocker. Don't read a
 headless hang as a regression in whatever you just changed: the live env is
-built by `build-live.sh` alone and is independent of the payload layers.
+built by `build-live-base.sh`/`build-live.sh` and is independent of the
+payload layers.
 
 CI (`.github/workflows/`): `build.yml` runs `sudo make iso` on PRs and tags
 (uploads the ISO artifact on tag pushes); `rootfs.yml` runs `make rootfs`
@@ -97,16 +99,18 @@ The ISO is assembled from several independently-built pieces — understanding
 *why* they're split is the key to not breaking the iteration-cost story. Every
 split exists to keep a frequently-edited thing off the slow path:
 
-1. **Live env** (`scripts/build-live.sh` → `live-rootfs-$ARCH.tar.zst`) — boots
-   the installer. Kernel, systemd, live-boot, disk tools, signed shim/grub
-   (needed only so `make-iso.sh` can extract boot binaries from this tarball).
+1. **Live base** (`scripts/build-live-base.sh` → `live-base-rootfs-$ARCH.tar.zst`)
+   — stock Ubuntu, kernel, live-boot, disk tools, signed shim/grub (the last
+   needed only so `make-iso.sh` can extract boot binaries from this tarball).
    No k3s, no ssh, no iptables — it never touches anything the payload needs.
-   Still a single mmdebstrap run; it has not been layered like the payload.
-2. **Base rootfs** (`scripts/build-base-rootfs.sh` → `base-rootfs-$ARCH.tar.zst`)
+2. **Live env** (`scripts/build-live.sh` → `live-rootfs-$ARCH.tar.zst`) — the
+   live base with `live/overlay/` and `live/live.d/` applied: the installer
+   entry point, its unit, hostname and networkd config.
+3. **Base rootfs** (`scripts/build-base-rootfs.sh` → `base-rootfs-$ARCH.tar.zst`)
    — stock Ubuntu via mmdebstrap and nothing else: no vendored binaries, no
    appliance config. Slow and network-bound. Only the package list or the dpkg
    excludes should ever rebuild it — notably **not** a `K3S_VERSION` bump.
-3. **Payload rootfs** (`scripts/build-rootfs.sh` → `appliance-rootfs-$ARCH.tar.zst`)
+4. **Payload rootfs** (`scripts/build-rootfs.sh` → `appliance-rootfs-$ARCH.tar.zst`)
    → packed by `make-image.sh` into an ext4 partition image
    (`rootfs-$ARCH.raw.zst`) — the base with everything that makes it an
    appliance applied on top: `rootfs/overlay/` and `rootfs/rootfs.d/`, the
@@ -114,16 +118,21 @@ split exists to keep a frequently-edited thing off the slow path:
    network, seconds rather than minutes. **This image is also what
    systemd-sysupdate writes into the inactive slot on A/B updates** — install
    and update share one artifact.
-4. **Plain files on the ISO** (`installer/install.sh`, `installer/installer.d/`,
+5. **Plain files on the ISO** (`installer/install.sh`, `installer/installer.d/`,
    `firstboot/firstboot.sh`, `firstboot/firstboot.d/`, `machine.conf`) — copied
    onto the ISO as-is by `make-iso.sh`, never baked into any rootfs. Editing
    them costs only an ISO repack.
 
-### The payload customization layer
+### The customization layers
 
-`build-rootfs.sh` re-executes itself under `fakeroot`, extracts the base tar,
-runs `rootfs/rootfs.d/*.sh` in glob order with the rootfs dir as `$1`, and
-repacks. Three rules there are load-bearing:
+Both halves are layered the same way, and the rules below apply to each:
+`rootfs/{overlay,rootfs.d}` on top of the base rootfs, `live/{overlay,live.d}`
+on top of the live base.
+
+
+`build-rootfs.sh` and `build-live.sh` each re-execute themselves under
+`fakeroot`, extract their base tar, run their `*.d/*.sh` steps in glob order
+with the rootfs dir as `$1`, and repack. Three rules there are load-bearing:
 
 - **One `fakeroot` session wraps everything.** Same idiom, and same reason, as
   `make-image.sh` and `make-iso.sh`: extraction, the steps, and the repack must
@@ -166,7 +175,8 @@ Rebuild cost by what you touched:
 | `rootfs/overlay/*`, `rootfs/rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | `K3S_VERSION` bump (re-fetch, then re-install the binary) | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
 | package list / dpkg excludes in `build-base-rootfs.sh` | `make base` → `rootfs` → `image` → `iso` |
-| kernel/live tooling in `build-live.sh` | `make live` → `iso` |
+| `live/overlay/*`, `live/live.d/*` | `make live` → `iso` (no mmdebstrap) |
+| kernel/live package list in `build-live-base.sh` | `make live-base` → `live` → `iso` |
 
 ## Boot flow (install → firstboot → steady state)
 
@@ -271,7 +281,7 @@ OS-level only".
   the kernel/uname spelling derive `ARCH_KERNEL` (`x86_64`/`aarch64`)
   themselves rather than accepting it as a separate input where avoidable.
 - Numbered step scripts (`installer.d/NN-*.sh`, `firstboot.d/NN-*.sh`,
-  `rootfs/rootfs.d/NN-*.sh`) run in glob order and communicate via exported
+  `rootfs/rootfs.d/NN-*.sh`, `live/live.d/NN-*.sh`) run in glob order and communicate via exported
   shell variables set by their parent entry point — not via files or return
   values. `rootfs.d` steps additionally take the rootfs directory as `$1`,
   deliberately matching an mmdebstrap `--customize-hook` signature so a step
