@@ -279,8 +279,12 @@ OS-level only".
   "fix" this without checking that section first, there's a chosen direction.
 - Root filesystem is mounted rw (`21-fstab.sh`), not yet read-only;
   this is intentional until the `/data`-backed overlay work lands.
-- SSH host keys are currently baked into the image at build time (not
-  regenerated/persisted per-machine) — flagged as a TODO, not yet fixed.
+- SSH host keys are removed at build time
+  (`build-rootfs.d/20-remove-ssh-hostkeys.sh`)
+  so each machine generates its own on first boot via the distro's own
+  `sshd-keygen.service`. They are **not** yet persisted to `/data`, so an A/B
+  update regenerates them and the host key changes — see TODO "Shared state on
+  `/data`".
 
 ## Conventions in this repo
 

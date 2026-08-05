@@ -153,9 +153,18 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
 
 - `/etc/machine-id` → store at `/data/machine-id`, copy in early boot
   before `systemd-machine-id-commit.service`.
-- SSH host keys → persist to `/data`. Also: keys are currently **baked into
-  the image** (openssh-server postinst runs during mmdebstrap) — delete at
-  end of `build-rootfs.sh`, `ssh-keygen -A` + persist in firstboot.
+- SSH host keys → persist to `/data`. **Only persistence is left** — the
+  keys openssh-server's postinst baked in are now removed at build time by
+  `rootfs/build-rootfs.d/20-remove-ssh-hostkeys.sh` (2026-08-05), and regeneration
+  needs no code of ours: `sshd-keygen.service` ships enabled, ordered
+  `Before=ssh.service`, and runs `ssh-keygen -A` under `ConditionFirstBoot`,
+  which holds because `/etc/machine-id` ships empty.
+  **Consequence until this lands:** `/etc/ssh` is per-slot, so an A/B update
+  boots slot B with no keys and regenerates them — the host key changes on
+  every OS update and clients see `REMOTE HOST IDENTIFICATION HAS CHANGED`.
+  Previously masked because the baked-in key was accidentally A/B-stable.
+  Same fix and same early-boot ordering as `/etc/machine-id` above; do them
+  together.
 - `machine.conf`, k3s `config.yaml` (`K3S_CONFIG_FILE`), hostname, per-node
   netplan, admin `authorized_keys` → `/data`.
 - `/var/log/journal` → `/data` (`Storage=persistent`): cross-slot logs, so
