@@ -9,10 +9,11 @@
 # mmdebstrap.
 #
 # Customization comes from two places, in this order:
-#   live/overlay/   a file tree mirroring the target layout, copied in as-is
-#   live/live.d/    numbered scripts, run in glob order, each given the rootfs
-#                   directory as $1 (same signature as an mmdebstrap
-#                   --customize-hook, so steps can move between layers)
+#   live/overlay/        a file tree mirroring the target layout, copied in
+#                        as-is
+#   live/build-live.d/   numbered scripts, run in glob order, each given the
+#                        rootfs directory as $1 (same signature as an mmdebstrap
+#                        --customize-hook, so steps can move between layers)
 #
 # Runs unprivileged under a single fakeroot session — the same idiom as
 # build-rootfs.sh, make-image.sh and make-iso.sh, and for the same reason:
@@ -43,7 +44,7 @@ BASE="${LIVE_BASE_TAR:-$BUILD/live-base-rootfs-$ARCH.tar.zst}"
 OUTPUT="${1:-$BUILD/live-rootfs-$ARCH.tar.zst}"
 
 OVERLAY="${OVERLAY:-live/overlay}"
-STEPS_DIR="${STEPS_DIR:-live/live.d}"
+STEPS_DIR="${STEPS_DIR:-live/build-live.d}"
 export OVERLAY ARCH
 
 # The live tar is an intermediate: make-iso.sh extracts it immediately, pulls

@@ -1,13 +1,15 @@
 #!/bin/bash
-# Builds the base rootfs tarball using mmdebstrap: stock Ubuntu and nothing
-# else. This is the slow, network-bound half of the payload build — everything
+# Builds the appliance base rootfs tarball using mmdebstrap: stock Ubuntu and
+# nothing else. This is the slow, network-bound half of the payload build — everything
 # that makes it an *appliance* (vendored binaries, units, hostname, admin user,
 # presets) is applied on top by build-rootfs.sh, which needs no network and
 # runs in seconds.
 #
-# Rebuild this only when the package list or the dpkg excludes change. Note a
-# K3S_VERSION bump does NOT need it: the k3s binary is installed by
-# rootfs/rootfs.d/05-vendor.sh in the customization layer. The installer/live environment is a separate build — see build-live.sh.
+# Rebuild this only when the package list or the dpkg excludes change — a
+# K3S_VERSION bump stays in the customization layer, where
+# rootfs/build-rootfs.d/05-vendor.sh installs the k3s binary.
+# The installer/live environment is a separate pair of builds — see
+# build-live-base.sh and build-live.sh.
 # Runs unprivileged via user namespaces (--mode=unshare).
 # The .tar.zst extension makes mmdebstrap emit a zstd-compressed tarball;
 # downstream tar -x/-t auto-detect the compression.
@@ -17,7 +19,7 @@ set -euo pipefail
 
 BUILD="${BUILD:-build}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
-OUTPUT="${1:-$BUILD/base-rootfs-$ARCH.tar.zst}"
+OUTPUT="${1:-$BUILD/appliance-base-rootfs-$ARCH.tar.zst}"
 SUITES="resolute"
 
 # amd64 lives on archive.ubuntu.com; every other arch on ports.ubuntu.com
@@ -48,7 +50,7 @@ PACKAGES=(
     procps
     # runtime deps:
     jq curl ansible skopeo
-    # admin account (created by rootfs.d/10-admin-user.sh)
+    # admin account (created by build-rootfs.d/10-admin-user.sh)
     sudo
 )
 

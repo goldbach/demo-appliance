@@ -32,10 +32,10 @@ and run `sudo ./scripts/install-build-deps.sh` + subuid/subgid setup directly
 
 ```bash
 make iso              # full pipeline: fetch → rootfs + live → image → iso
-make base             # just the base rootfs tarball (Ubuntu + vendored bins)
-make rootfs           # payload rootfs tarball (base + rootfs/overlay + rootfs.d)
+make base             # just the appliance base rootfs tarball (stock Ubuntu)
+make rootfs           # payload rootfs tarball (base + rootfs/overlay + build-rootfs.d)
 make live-base        # just the live base tarball (Ubuntu + kernel + live-boot)
-make live             # live rootfs tarball (live base + live/overlay + live.d)
+make live             # live rootfs tarball (live base + live/overlay + build-live.d)
 make fetch            # download k3s binary + airgap images (vendor/k3s/$ARCH)
 make boot             # boot the built ISO in QEMU (UEFI, Secure Boot)
 make boot-headless    # same, serial console — pick "serial console" grub entry
@@ -104,16 +104,16 @@ split exists to keep a frequently-edited thing off the slow path:
    needed only so `make-iso.sh` can extract boot binaries from this tarball).
    No k3s, no ssh, no iptables — it never touches anything the payload needs.
 2. **Live env** (`scripts/build-live.sh` → `live-rootfs-$ARCH.tar.zst`) — the
-   live base with `live/overlay/` and `live/live.d/` applied: the installer
+   live base with `live/overlay/` and `live/build-live.d/` applied: the installer
    entry point, its unit, hostname and networkd config.
-3. **Base rootfs** (`scripts/build-base-rootfs.sh` → `base-rootfs-$ARCH.tar.zst`)
+3. **Appliance base** (`scripts/build-base-rootfs.sh` → `appliance-base-rootfs-$ARCH.tar.zst`)
    — stock Ubuntu via mmdebstrap and nothing else: no vendored binaries, no
    appliance config. Slow and network-bound. Only the package list or the dpkg
    excludes should ever rebuild it — notably **not** a `K3S_VERSION` bump.
 4. **Payload rootfs** (`scripts/build-rootfs.sh` → `appliance-rootfs-$ARCH.tar.zst`)
    → packed by `make-image.sh` into an ext4 partition image
    (`rootfs-$ARCH.raw.zst`) — the base with everything that makes it an
-   appliance applied on top: `rootfs/overlay/` and `rootfs/rootfs.d/`, the
+   appliance applied on top: `rootfs/overlay/` and `rootfs/build-rootfs.d/`, the
    latter including the vendored k3s binary (`05-vendor.sh`). No apt, no
    network, seconds rather than minutes. **This image is also what an A/B
    update writes into the inactive slot** — install and update share one
@@ -133,7 +133,7 @@ firstboot logic now travels with the rootfs, so an A/B update refreshes it.
 ### The customization layers
 
 Both halves are layered the same way, and the rules below apply to each:
-`rootfs/{overlay,rootfs.d}` on top of the base rootfs, `live/{overlay,live.d}`
+`rootfs/{overlay,build-rootfs.d}` on top of the base rootfs, `live/{overlay,build-live.d}`
 on top of the live base.
 
 
@@ -164,7 +164,7 @@ with the rootfs dir as `$1`, and repack. Three rules there are load-bearing:
 Adding a static file to the image is a `git add` under `rootfs/overlay/` — the
 tree mirrors the target layout, so `rootfs/overlay/etc/hostname` becomes
 `/etc/hostname`. Only things needing logic (chroot calls, anything derived from
-`vendor/`) earn a `rootfs.d/` step. Empty directories are the one exception:
+`vendor/`) earn a `build-rootfs.d/` step. Empty directories are the one exception:
 git cannot track them, so `/data` is `mkdir`ed in `00-overlay.sh`.
 
 **Do not put the k3s air-gap image tarballs in the overlay.** They are the one
@@ -178,10 +178,10 @@ Rebuild cost by what you touched:
 | Change | Rebuild needed |
 |---|---|
 | `live/overlay/usr/lib/appliance-installer/*` (install.sh, installer.d/*) | `make live` → `iso` (no mmdebstrap) |
-| `rootfs/overlay/*` (incl. firstboot.sh, firstboot.d/*), `rootfs/rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
+| `rootfs/overlay/*` (incl. firstboot.sh, firstboot.d/*), `rootfs/build-rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | `K3S_VERSION` bump (re-fetch, then re-install the binary) | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
 | package list / dpkg excludes in `build-base-rootfs.sh` | `make base` → `rootfs` → `image` → `iso` |
-| `live/overlay/*`, `live/live.d/*` | `make live` → `iso` (no mmdebstrap) |
+| `live/overlay/*`, `live/build-live.d/*` | `make live` → `iso` (no mmdebstrap) |
 | kernel/live package list in `build-live-base.sh` | `make live-base` → `live` → `iso` |
 
 ## Boot flow (install → firstboot → steady state)
@@ -229,7 +229,7 @@ an A/B update).
 
 The k3s binary and its air-gap images are both vendored, but they travel by
 completely different routes. The binary is installed into the payload rootfs by
-`rootfs.d/05-vendor.sh`; the images ride the ISO as plain files and land on
+`build-rootfs.d/05-vendor.sh`; the images ride the ISO as plain files and land on
 `/data`:
 
 ```
@@ -243,7 +243,7 @@ Vendored downloads carry `K3S_VERSION` in their filenames — the artifact is it
 own fetch stamp, so there is no marker file to drift, and old versions stay in
 `vendor/` (switching `K3S_VERSION` back and forth costs no re-download).
 Because several versions coexist there, anything reading `vendor/` must name the
-pinned file rather than glob: `make-iso.sh` and `rootfs.d/05-vendor.sh` both do.
+pinned file rather than glob: `make-iso.sh` and `build-rootfs.d/05-vendor.sh` both do.
 `05-vendor.sh` drops the version when installing, so the appliance always has a
 plain `/usr/local/bin/k3s` and the units need no version-aware paths.
 
@@ -288,13 +288,13 @@ OS-level only".
   the kernel/uname spelling derive `ARCH_KERNEL` (`x86_64`/`aarch64`)
   themselves rather than accepting it as a separate input where avoidable.
 - Numbered step scripts (`installer.d/NN-*.sh`, `firstboot.d/NN-*.sh`,
-  `rootfs/rootfs.d/NN-*.sh`, `live/live.d/NN-*.sh`) run in glob order and communicate via exported
+  `rootfs/build-rootfs.d/NN-*.sh`, `live/build-live.d/NN-*.sh`) run in glob order and communicate via exported
   shell variables set by their parent entry point — not via files or return
-  values. `rootfs.d` steps additionally take the rootfs directory as `$1`,
+  values. `build-rootfs.d` steps additionally take the rootfs directory as `$1`,
   deliberately matching an mmdebstrap `--customize-hook` signature so a step
   can move between the base and customization layers unedited.
 - mmdebstrap runs are always `--mode=unshare` (unprivileged). Don't add a step
   that requires real root inside the chroot; use `--customize-hook='chroot "$1" ...'`
   patterns already used in `build-base-rootfs.sh`/`build-live.sh`. That chroot
-  is available in the mmdebstrap layers only — `rootfs.d` steps run under
+  is available in the mmdebstrap layers only — `build-rootfs.d` steps run under
   fakeroot and must use `--prefix`/`--root` flags instead.

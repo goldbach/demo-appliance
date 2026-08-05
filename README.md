@@ -45,10 +45,10 @@ limactl shell builder
 
 ```bash
 make iso              # full pipeline: fetch → rootfs + live → image → iso
-make base             # just the base rootfs tarball (stock Ubuntu only)
-make rootfs           # payload rootfs tarball (base + rootfs/overlay + rootfs.d)
+make base             # just the appliance base rootfs tarball (stock Ubuntu)
+make rootfs           # payload rootfs tarball (base + rootfs/overlay + build-rootfs.d)
 make live-base        # just the live base tarball (Ubuntu + kernel + live-boot)
-make live             # live rootfs tarball (live base + live/overlay + live.d)
+make live             # live rootfs tarball (live base + live/overlay + build-live.d)
 make boot             # boot the ISO in QEMU (UEFI; Secure Boot on amd64)
 make boot-headless    # same on serial/stdio — the ISO's default grub entry
                       # is display-primary now, so pick "serial console"
@@ -127,6 +127,6 @@ Iteration cost by change:
 | `Makefile` | Build targets and package list |
 | `builder.yaml` | Lima VM config (ARM64 VZ + Rosetta, 4 CPU, 8GB RAM, 40GB disk) |
 | `live/overlay/` | File tree copied into the live rootfs as-is (installer entrypoint + `install.sh` + `installer.d/`, unit, hostname, networkd) |
-| `live/live.d/` | Live env customization steps, glob order (overlay copy, presets) |
+| `live/build-live.d/` | Live env customization steps, glob order (overlay copy, presets) |
 | `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, `firstboot.sh` + `firstboot.d/`, hostname, networkd, presets) |
-| `rootfs/rootfs.d/` | Payload customization steps, glob order (overlay copy, admin user, presets) |
+| `rootfs/build-rootfs.d/` | Payload customization steps, glob order (overlay copy, admin user, presets) |

@@ -20,27 +20,27 @@ export K3S_VERSION ARCH ARCH_KERNEL
 # up to date (e.g. a truncated tarball from an interrupted mmdebstrap).
 .DELETE_ON_ERROR:
 
-BASE_TAR      := $(BUILD)/base-rootfs-$(ARCH).tar.zst
-ROOTFS_TAR    := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
-LIVE_BASE_TAR := $(BUILD)/live-base-rootfs-$(ARCH).tar.zst
-LIVE_TAR      := $(BUILD)/live-rootfs-$(ARCH).tar.zst
-ROOTFS_RAW  := $(BUILD)/rootfs-$(ARCH).raw
-ROOTFS_ZST  := $(ROOTFS_RAW).zst
-ISO         := $(BUILD)/appliance-$(ARCH).iso
+APPLIANCE_BASE_TAR := $(BUILD)/appliance-base-rootfs-$(ARCH).tar.zst
+ROOTFS_TAR         := $(BUILD)/appliance-rootfs-$(ARCH).tar.zst
+LIVE_BASE_TAR      := $(BUILD)/live-base-rootfs-$(ARCH).tar.zst
+LIVE_TAR           := $(BUILD)/live-rootfs-$(ARCH).tar.zst
+ROOTFS_RAW         := $(BUILD)/rootfs-$(ARCH).raw
+ROOTFS_ZST         := $(ROOTFS_RAW).zst
+ISO                := $(BUILD)/appliance-$(ARCH).iso
 # Vendored downloads carry K3S_VERSION in their filenames: the artifact IS the
 # stamp, so a version bump makes these targets "missing" and triggers a fetch.
 # Old versions stay on disk, so switching back and forth costs no re-download.
-K3S_BIN     := vendor/k3s/$(ARCH)/bin/k3s-$(K3S_VERSION)
-K3S_IMAGES  := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH)-$(K3S_VERSION).tar.zst
+K3S_BIN            := vendor/k3s/$(ARCH)/bin/k3s-$(K3S_VERSION)
+K3S_IMAGES         := vendor/k3s/$(ARCH)/images/k3s-airgap-images-$(ARCH)-$(K3S_VERSION).tar.zst
 
 # Scripts/units that get baked into the images or packed onto the ISO —
 # editing them must trigger the right rebuild/repack. The rootfs overlay and
 # step scripts hang off $(ROOTFS_TAR) only: they are applied by the fast
 # customization layer, so touching them stays on the fast path.
 ROOTFS_OVERLAY := $(shell find rootfs/overlay -type f 2>/dev/null)
-ROOTFS_STEPS   := $(wildcard rootfs/rootfs.d/*.sh)
+ROOTFS_STEPS   := $(wildcard rootfs/build-rootfs.d/*.sh)
 LIVE_OVERLAY   := $(shell find live/overlay -type f 2>/dev/null)
-LIVE_STEPS     := $(wildcard live/live.d/*.sh)
+LIVE_STEPS     := $(wildcard live/build-live.d/*.sh)
 
 .PHONY: all deps fetch live-base live base rootfs image iso iso-info clean distclean clean-iso clean-live-base clean-live clean-base clean-rootfs boot boot-headless boot-proxmox
 
@@ -62,12 +62,12 @@ $(K3S_BIN) $(K3S_IMAGES) &: scripts/fetch-k3s.sh
 
 # Slow half: mmdebstrap from the network, fed only by the package list and the
 # dpkg excludes, so a K3S_VERSION bump stays on the fast path below.
-$(BASE_TAR): scripts/build-base-rootfs.sh
+$(APPLIANCE_BASE_TAR): scripts/build-base-rootfs.sh
 	./scripts/build-base-rootfs.sh
 
 # Fast half: no network, seconds. Everything appliance-specific lands here,
-# including the vendored k3s binary (rootfs.d/05-vendor.sh).
-$(ROOTFS_TAR): $(BASE_TAR) $(K3S_BIN) $(ROOTFS_OVERLAY) $(ROOTFS_STEPS) scripts/build-rootfs.sh
+# including the vendored k3s binary (build-rootfs.d/05-vendor.sh).
+$(ROOTFS_TAR): $(APPLIANCE_BASE_TAR) $(K3S_BIN) $(ROOTFS_OVERLAY) $(ROOTFS_STEPS) scripts/build-rootfs.sh
 	./scripts/build-rootfs.sh
 
 # Same split as the payload above: mmdebstrap once, customization on top.
@@ -88,7 +88,7 @@ $(ISO): $(LIVE_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) ./scripts/make-iso.sh
 fetch: $(K3S_BIN) $(K3S_IMAGES)
 live-base: $(LIVE_BASE_TAR)
 live: $(LIVE_TAR)
-base: $(BASE_TAR)
+base: $(APPLIANCE_BASE_TAR)
 rootfs: $(ROOTFS_TAR)
 image: $(ROOTFS_ZST)
 iso: $(ISO)
@@ -113,7 +113,7 @@ clean-live:
 	rm -f $(LIVE_TAR)
 
 clean-base:
-	rm -f $(BASE_TAR)
+	rm -f $(APPLIANCE_BASE_TAR)
 
 clean-rootfs:
 	rm -f $(ROOTFS_TAR)

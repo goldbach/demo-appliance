@@ -1,7 +1,7 @@
 #!/bin/bash
 # Downloads the k3s binary and air-gap image tarball for a pinned version.
 # Run this before `make rootfs`. Output lands in vendor/k3s/$ARCH/, from where
-# the two halves take different routes: rootfs/rootfs.d/05-vendor.sh installs
+# the two halves take different routes: rootfs/build-rootfs.d/05-vendor.sh installs
 # the *binary* into the payload rootfs, while make-iso.sh puts the *images* on
 # the ISO as plain files (installer.d/60-airgap.sh then writes them to /data).
 # Air-gap images stay out of the rootfs — see TODO.md.
@@ -60,7 +60,7 @@ curl -fsSL "$BASE_URL/k3s-airgap-images-$ARCH.tar.zst" \
 log "Verifying checksums..."
 (cd "$WORK" && sha256sum --check --ignore-missing "sha256sum-$ARCH.txt")
 
-# Only now publish under versioned names. rootfs.d/05-vendor.sh strips the
+# Only now publish under versioned names. build-rootfs.d/05-vendor.sh strips the
 # version again when installing to /usr/local/bin/k3s.
 chmod +x "$WORK/$BIN_ASSET"
 mv "$WORK/$BIN_ASSET"                          "$BIN_OUT"

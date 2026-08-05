@@ -8,10 +8,12 @@
 # file or the admin user costs seconds here instead of a full mmdebstrap.
 #
 # Customization comes from two places, in this order:
-#   rootfs/overlay/    a file tree mirroring the target layout, copied in as-is
-#   rootfs/rootfs.d/   numbered scripts, run in glob order, each given the
-#                      rootfs directory as $1 (same signature as an mmdebstrap
-#                      --customize-hook, so steps can move between layers)
+#   rootfs/overlay/          a file tree mirroring the target layout, copied
+#                            in as-is
+#   rootfs/build-rootfs.d/   numbered scripts, run in glob order, each given the
+#                            rootfs directory as $1 (same signature as an
+#                            mmdebstrap --customize-hook, so steps can move
+#                            between layers)
 #
 # Runs unprivileged under a single fakeroot session — the same idiom as
 # make-image.sh and make-iso.sh, and for the same reason: extraction, the
@@ -36,16 +38,16 @@ fi
 
 BUILD="${BUILD:-build}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
-BASE="${BASE_TAR:-$BUILD/base-rootfs-$ARCH.tar.zst}"
+BASE="${APPLIANCE_BASE_TAR:-$BUILD/appliance-base-rootfs-$ARCH.tar.zst}"
 OUTPUT="${1:-$BUILD/appliance-rootfs-$ARCH.tar.zst}"
 
 OVERLAY="${OVERLAY:-rootfs/overlay}"
-STEPS_DIR="${STEPS_DIR:-rootfs/rootfs.d}"
+STEPS_DIR="${STEPS_DIR:-rootfs/build-rootfs.d}"
 # Steps read these from the environment (05-vendor.sh needs ARCH to find the
 # right vendor/ subdir), matching the installer.d/firstboot.d convention.
 export OVERLAY ARCH
 
-# Baked-in admin account, consumed by rootfs.d/10-admin-user.sh. Same
+# Baked-in admin account, consumed by build-rootfs.d/10-admin-user.sh. Same
 # credentials on every box built with these values — fine for the demo phase,
 # see TODO "Baked-in admin user".
 ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
