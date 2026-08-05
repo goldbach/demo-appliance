@@ -41,9 +41,6 @@ ROOTFS_OVERLAY := $(shell find rootfs/overlay -type f 2>/dev/null)
 ROOTFS_STEPS   := $(wildcard rootfs/rootfs.d/*.sh)
 LIVE_OVERLAY   := $(shell find live/overlay -type f 2>/dev/null)
 LIVE_STEPS     := $(wildcard live/live.d/*.sh)
-# The only plain file left on the ISO — the install and firstboot logic now
-# ride the live env and the payload image respectively (see their overlays).
-ISO_SCRIPTS   := installer/machine.conf.example
 
 .PHONY: all deps fetch live-base live base rootfs image iso iso-info clean distclean clean-iso clean-live-base clean-live clean-base clean-rootfs boot boot-headless boot-proxmox
 
@@ -83,7 +80,7 @@ $(LIVE_TAR): $(LIVE_BASE_TAR) $(LIVE_OVERLAY) $(LIVE_STEPS) scripts/build-live.s
 $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh
 	./scripts/make-image.sh $< $(ROOTFS_RAW)
 
-$(ISO): $(LIVE_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) $(ISO_SCRIPTS) ./scripts/make-iso.sh
+$(ISO): $(LIVE_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) ./scripts/make-iso.sh
 	./scripts/make-iso.sh $(LIVE_TAR) $(ROOTFS_ZST) $@
 
 # Convenience aliases (for manual runs)

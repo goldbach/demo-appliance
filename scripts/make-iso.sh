@@ -116,14 +116,12 @@ fakeroot -- bash -c '
 printf '%s' "$(du -sx --block-size=1 "$SQUASH_ROOT" | cut -f1)" \
     > "$ISO_ROOT/live/filesystem.size"
 
-# --- Installer payload: the A/B rootfs partition image + machine config ---
-# Only two things ride the ISO now. The install logic is baked into the live
-# env and the firstboot logic into the payload image, so both are present
-# however the node booted — including PXE, where there is no medium to read.
-# machine.conf stays a plain file precisely because it is the per-machine bit:
-# editable on the USB stick without rebuilding anything.
+# --- Installer payload: the A/B rootfs partition image ---
+# The only thing riding the ISO. Install logic is baked into the live env,
+# firstboot logic into the payload image, and machine.conf is written by
+# installer.d/50-config.sh — so all of it is present however the node booted,
+# including PXE where there is no medium to read.
 install -m 0644 "$ROOTFS_IMG" "$ISO_ROOT/installer/rootfs.raw.zst"
-install -m 0600 installer/machine.conf.example "$ISO_ROOT/installer/machine.conf"
 
 # --- k3s air-gap images (copied to /data by install.sh) ---
 # vendor/ keeps every version ever fetched, so name the pinned file exactly —

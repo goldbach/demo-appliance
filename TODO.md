@@ -231,6 +231,41 @@ the data. Rule: k3s version bumps are the committed part of an update —
 within the same k3s version. (Relevant for the planned control-plane
 failover mode: embedded etcd members carry state across slots.)
 
+## machine.conf: resolve from the kernel cmdline (way forward)
+
+**Now (2026-08-05):** `installer.d/50-config.sh` writes
+`/etc/appliance/machine.conf` from a heredoc — single-node server,
+`CLUSTER_INIT=true`, `CLUSTER_TOKEN=changeme`. The `machine.conf.example`
+template that used to ride the ISO is gone, and with it the `installer/`
+directory; the ISO now carries only `rootfs.raw.zst`.
+
+**What that costs:** the file is the only genuinely per-node input
+(`ROLE`, `CLUSTER_INIT`, `SERVER_URL`, `CLUSTER_TOKEN`), and it is no longer
+editable without a rebuild. Installing an *agent* means editing the heredoc and
+running `make live` + `iso`. Acceptable for the demo phase, not for the field.
+
+**Way forward — resolve at install time, in priority order:**
+
+1. **Kernel cmdline** — `appliance.role=`, `appliance.cluster-init=`,
+   `appliance.server=`, `appliance.token=`. Gives PXE a config channel it does
+   not have today (there is no medium to read), and lets one image produce both
+   servers and agents.
+2. **A `machine.conf` on the installer medium**, if present — restores the
+   edit-the-USB-stick workflow for the ISO/USB case.
+3. **Built-in defaults** — what 50-config.sh writes today, so a bare boot with
+   no arguments still installs successfully.
+
+Fold this into `50-config.sh`; it already owns writing the file. Note the steps
+run via `bash "$step"` in subshells, so a separate generator step could not
+export the result to a later one — a fixed path or in-place write is required
+either way.
+
+**Security caveat to resolve with it:** `appliance.token=` on the cmdline is
+world-readable via `/proc/cmdline` and lands in bootloader config. Options: a
+one-shot token that k3s rotates, fetching the token from a URL given on the
+cmdline, or accepting it only from the medium. Same problem family as
+"Baked-in admin user" below — worth deciding once, for both.
+
 ## Baked-in admin user (temporary — fix before shipping)
 
 `build-rootfs.sh` bakes `$ADMIN_USERNAME` (default `admin`, sudo group) with

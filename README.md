@@ -103,17 +103,15 @@ The ISO carries three things, with very different rebuild costs:
 2. **Payload image** (`installer/rootfs.raw.zst`) — the full node OS written
    to slot A: k3s, openssh, grub, systemd units. The same image an A/B
    update writes into the inactive slot.
-3. **Machine config** (`installer/machine.conf`) — the only plain file left on
-   the ISO, and the only genuinely per-machine input. Editable on the USB
-   stick without rebuilding. The install logic lives in the live env and the
-   firstboot logic in the payload image, so both survive a PXE boot with no
-   medium to read.
+The ISO carries nothing else: install logic lives in the live env, firstboot
+logic in the payload image, and `machine.conf` is written at install time by
+`installer.d/50-config.sh`. All of it survives a PXE boot with no medium to
+read — though the config is a fixed default for now, see TODO.
 
 Iteration cost by change:
 
 | Change | Rebuild |
 |--------|---------|
-| `machine.conf.example` | `make iso` — repack only (fast) |
 | install logic (`install.sh`, `installer.d/*`) | `make live` → `iso` (no mmdebstrap) |
 | firstboot logic (`firstboot.sh`, `firstboot.d/*`) | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | payload unit, config file, admin user | `make rootfs` → `image` → `iso` (no mmdebstrap) |
@@ -128,7 +126,6 @@ Iteration cost by change:
 |------|---------|
 | `Makefile` | Build targets and package list |
 | `builder.yaml` | Lima VM config (ARM64 VZ + Rosetta, 4 CPU, 8GB RAM, 40GB disk) |
-| `installer/` | `machine.conf.example` — the per-machine config template shipped on the ISO |
 | `live/overlay/` | File tree copied into the live rootfs as-is (installer entrypoint + `install.sh` + `installer.d/`, unit, hostname, networkd) |
 | `live/live.d/` | Live env customization steps, glob order (overlay copy, presets) |
 | `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, `firstboot.sh` + `firstboot.d/`, hostname, networkd, presets) |

@@ -118,10 +118,10 @@ split exists to keep a frequently-edited thing off the slow path:
    network, seconds rather than minutes. **This image is also what an A/B
    update writes into the inactive slot** — install and update share one
    artifact.
-5. **Plain files on the ISO** (`installer/machine.conf.example` → `machine.conf`)
-   — copied onto the ISO as-is by `make-iso.sh`, alongside the payload image.
-   Just the one file now: it is the only genuinely per-machine input (`ROLE`,
-   `CLUSTER_TOKEN`, ...) and stays editable on the USB stick without rebuilding.
+The ISO itself now carries only the payload image — no plain-file scripts, no
+config. `machine.conf` is written at install time by `installer.d/50-config.sh`
+from a built-in default (see TODO "machine.conf: resolve from the kernel
+cmdline" for why that is temporary).
 
 Where the install and firstboot logic live follows **where it runs**, not how
 it is delivered: `install.sh` + `installer.d/` are baked into the live env
@@ -177,7 +177,6 @@ Rebuild cost by what you touched:
 
 | Change | Rebuild needed |
 |---|---|
-| `installer/machine.conf.example` | `make iso` only |
 | `live/overlay/usr/lib/appliance-installer/*` (install.sh, installer.d/*) | `make live` → `iso` (no mmdebstrap) |
 | `rootfs/overlay/*` (incl. firstboot.sh, firstboot.d/*), `rootfs/rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | `K3S_VERSION` bump (re-fetch, then re-install the binary) | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
@@ -206,9 +205,9 @@ Rebuild cost by what you touched:
      it, mount at `/mnt`.
    - `30-bootloader.sh` — `chroot grub-install` (Secure Boot, no `--no-nvram`
      so it registers an EFI boot entry ahead of removable media).
-   - `50-config.sh` — writes `/etc/fstab`, copies `machine.conf` to
-     `/etc/appliance/`, enables `firstboot.service`. The firstboot scripts
-     themselves are already in the image, so there is nothing to copy.
+   - `50-config.sh` — writes `/etc/fstab` and `/etc/appliance/machine.conf`
+     (built-in default: single-node server), enables `firstboot.service`. The
+     firstboot scripts themselves are already in the image.
    - `60-airgap.sh` — copies bundled k3s air-gap image tarballs to the data
      partition.
    - `90-unmount.sh` — `umount -R /mnt`.

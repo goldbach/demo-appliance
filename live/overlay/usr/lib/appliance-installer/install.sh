@@ -1,14 +1,13 @@
 #!/bin/bash
 # Entry point for the disk-install steps in installer.d/ next to this script
 # (executed in glob order). Baked into the live env; called by
-# installer-entrypoint.sh with ROOTFS_IMAGE and MACHINE_CONF set, both pointing
-# at the mounted installer medium. ROOTFS_IMAGE is the same zstd-compressed
-# partition image an A/B update writes into the inactive slot.
+# installer-entrypoint.sh with ROOTFS_IMAGE set, pointing at the mounted
+# installer medium. ROOTFS_IMAGE is the same zstd-compressed partition image an
+# A/B update writes into the inactive slot.
 set -euo pipefail
 
 export DISK="${1:?usage: install.sh <disk>}"
 export ROOTFS_IMAGE="${ROOTFS_IMAGE:?ROOTFS_IMAGE not set}"
-export MACHINE_CONF="${MACHINE_CONF:?MACHINE_CONF not set}"
 
 # Partition layout (MiB) — shared by the preflight and partition steps
 export EFI_SIZE=512

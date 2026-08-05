@@ -14,7 +14,7 @@ LIVE_DEV=""
 [ -f "$LIVE_DEV_FILE" ] && LIVE_DEV=$(cat "$LIVE_DEV_FILE")
 
 # Mount the installer medium (the device that holds live/filesystem.squashfs
-# — which doubles as the install payload — and installer/machine.conf).
+# — which doubles as the install payload — and installer/rootfs.raw.zst).
 MEDIUM_MOUNT=/run/installer/medium
 mkdir -p "$MEDIUM_MOUNT"
 
@@ -38,7 +38,6 @@ find_installer_medium() {
 log "Locating installer medium..."
 MEDIUM_DEV=$(find_installer_medium) || die "installer payload not found on any device"
 ROOTFS_IMAGE="$MEDIUM_MOUNT/installer/rootfs.raw.zst"
-MACHINE_CONF="$MEDIUM_MOUNT/installer/machine.conf"
 [ -f "$ROOTFS_IMAGE" ] || die "rootfs image missing on installer medium"
 log "Medium: $MEDIUM_DEV"
 
@@ -81,9 +80,8 @@ log "Starting in 5 seconds..."
 sleep 5
 
 export ROOTFS_IMAGE
-export MACHINE_CONF
 
 # install.sh and its steps are baked into this live env, so they are present
 # however the node booted — ISO, USB or PXE. The medium stays mounted
-# throughout: rootfs.raw.zst and machine.conf are still read from it.
+# throughout: rootfs.raw.zst is still read from it.
 exec bash /usr/lib/appliance-installer/install.sh "$DISK"

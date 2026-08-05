@@ -8,7 +8,6 @@ fail() { log "ERROR: $*"; exit 1; }
 
 [ -b "$DISK" ]          || fail "$DISK is not a block device"
 [ -r "$ROOTFS_IMAGE" ]  || fail "rootfs image not readable: $ROOTFS_IMAGE"
-[ -r "$MACHINE_CONF" ]  || fail "machine config not readable: $MACHINE_CONF"
 
 for tool in parted blockdev udevadm mkfs.fat mkfs.ext4 e2fsck resize2fs zstd; do
     command -v "$tool" >/dev/null || fail "missing tool in live env: $tool"
@@ -42,4 +41,4 @@ for f in /etc/passwd /etc/shadow /etc/gshadow /etc/sudoers; do
     [ -e "$f" ] && ls -l "$f"
 done
 
-log "OK: $DISK (${DISK_MIB} MiB), UEFI boot, payload image + machine config present"
+log "OK: $DISK (${DISK_MIB} MiB), UEFI boot, payload image present"
