@@ -118,10 +118,17 @@ split exists to keep a frequently-edited thing off the slow path:
    network, seconds rather than minutes. **This image is also what an A/B
    update writes into the inactive slot** — install and update share one
    artifact.
-5. **Plain files on the ISO** (`installer/install.sh`, `installer/installer.d/`,
-   `firstboot/firstboot.sh`, `firstboot/firstboot.d/`, `machine.conf`) — copied
-   onto the ISO as-is by `make-iso.sh`, never baked into any rootfs. Editing
-   them costs only an ISO repack.
+5. **Plain files on the ISO** (`installer/machine.conf.example` → `machine.conf`)
+   — copied onto the ISO as-is by `make-iso.sh`, alongside the payload image.
+   Just the one file now: it is the only genuinely per-machine input (`ROLE`,
+   `CLUSTER_TOKEN`, ...) and stays editable on the USB stick without rebuilding.
+
+Where the install and firstboot logic live follows **where it runs**, not how
+it is delivered: `install.sh` + `installer.d/` are baked into the live env
+(`live/overlay/usr/lib/appliance/`), `firstboot.sh` + `firstboot.d/` into the
+payload image (`rootfs/overlay/usr/lib/appliance/`). Both are therefore present
+however the node booted — including PXE, where there is no medium to read — and
+firstboot logic now travels with the rootfs, so an A/B update refreshes it.
 
 ### The customization layers
 
@@ -171,8 +178,9 @@ Rebuild cost by what you touched:
 
 | Change | Rebuild needed |
 |---|---|
-| `installer/install.sh`, `installer.d/*`, `firstboot.sh`, `firstboot.d/*` | `make iso` only |
-| `rootfs/overlay/*`, `rootfs/rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
+| `installer/machine.conf.example` | `make iso` only |
+| `live/overlay/usr/lib/appliance/*` (install.sh, installer.d/*) | `make live` → `iso` (no mmdebstrap) |
+| `rootfs/overlay/*` (incl. firstboot.sh, firstboot.d/*), `rootfs/rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | `K3S_VERSION` bump (re-fetch, then re-install the binary) | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
 | package list / dpkg excludes in `build-base-rootfs.sh` | `make base` → `rootfs` → `image` → `iso` |
 | `live/overlay/*`, `live/live.d/*` | `make live` → `iso` (no mmdebstrap) |
@@ -200,8 +208,8 @@ Rebuild cost by what you touched:
    - `30-bootloader.sh` — `chroot grub-install` (Secure Boot, no `--no-nvram`
      so it registers an EFI boot entry ahead of removable media).
    - `50-config.sh` — writes `/etc/fstab`, copies `machine.conf` to
-     `/etc/appliance/`, installs the firstboot scripts into the target, enables
-     `firstboot.service`.
+     `/etc/appliance/`, enables `firstboot.service`. The firstboot scripts
+     themselves are already in the image, so there is nothing to copy.
    - `60-airgap.sh` — copies bundled k3s air-gap image tarballs to the data
      partition.
    - `90-unmount.sh` — `umount -R /mnt`.

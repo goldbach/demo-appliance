@@ -83,7 +83,7 @@ sleep 5
 export ROOTFS_IMAGE
 export MACHINE_CONF
 
-# install.sh and its steps live on the medium as plain files (not baked into
-# the live env), so iterating on them only needs an ISO repack. The medium
-# stays mounted throughout — rootfs.raw.zst is read from it.
-exec bash "$MEDIUM_MOUNT/installer/install.sh" "$DISK"
+# install.sh and its steps are baked into this live env, so they are present
+# however the node booted — ISO, USB or PXE. The medium stays mounted
+# throughout: rootfs.raw.zst and machine.conf are still read from it.
+exec bash /usr/lib/appliance/install.sh "$DISK"

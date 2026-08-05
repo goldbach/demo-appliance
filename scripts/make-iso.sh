@@ -116,18 +116,14 @@ fakeroot -- bash -c '
 printf '%s' "$(du -sx --block-size=1 "$SQUASH_ROOT" | cut -f1)" \
     > "$ISO_ROOT/live/filesystem.size"
 
-# --- Installer payload: the A/B rootfs partition image + scripts ---
-# The frequently-edited scripts live on the ISO as plain files: install.sh
-# and firstboot.sh are re-exec'd / copied from the mounted medium at install
-# time, so iterating on them never requires a rootfs rebuild.
+# --- Installer payload: the A/B rootfs partition image + machine config ---
+# Only two things ride the ISO now. The install logic is baked into the live
+# env and the firstboot logic into the payload image, so both are present
+# however the node booted — including PXE, where there is no medium to read.
+# machine.conf stays a plain file precisely because it is the per-machine bit:
+# editable on the USB stick without rebuilding anything.
 install -m 0644 "$ROOTFS_IMG" "$ISO_ROOT/installer/rootfs.raw.zst"
-install -m 0600 firstboot/machine.conf.example "$ISO_ROOT/installer/machine.conf"
-install -m 0755 installer/install.sh "$ISO_ROOT/installer/install.sh"
-cp -r installer/installer.d "$ISO_ROOT/installer/"
-chmod 0755 "$ISO_ROOT/installer/installer.d"/*.sh
-install -m 0755 firstboot/firstboot.sh "$ISO_ROOT/installer/firstboot.sh"
-cp -r firstboot/firstboot.d "$ISO_ROOT/installer/"
-chmod 0755 "$ISO_ROOT/installer/firstboot.d"/*.sh
+install -m 0600 installer/machine.conf.example "$ISO_ROOT/installer/machine.conf"
 
 # --- k3s air-gap images (copied to /data by install.sh) ---
 # vendor/ keeps every version ever fetched, so name the pinned file exactly —

@@ -103,18 +103,19 @@ The ISO carries three things, with very different rebuild costs:
 2. **Payload image** (`installer/rootfs.raw.zst`) — the full node OS written
    to slot A: k3s, openssh, grub, systemd units. The same image an A/B
    update writes into the inactive slot.
-3. **Plain-file scripts** (`installer/install.sh`, `installer/installer.d/`,
-   `installer/firstboot.sh`, `installer/firstboot.d/`,
-   `installer/machine.conf`) — packed onto the ISO as-is. `installer-entrypoint.sh`
-   re-execs `install.sh` from the mounted medium, and the install copies the
-   firstboot scripts into the target. These are the files you edit most
-   often, so they are deliberately *not* baked into either rootfs.
+3. **Machine config** (`installer/machine.conf`) — the only plain file left on
+   the ISO, and the only genuinely per-machine input. Editable on the USB
+   stick without rebuilding. The install logic lives in the live env and the
+   firstboot logic in the payload image, so both survive a PXE boot with no
+   medium to read.
 
 Iteration cost by change:
 
 | Change | Rebuild |
 |--------|---------|
-| firstboot / installer script | `make iso` — squashfs of the micro live + repack (fast) |
+| `machine.conf.example` | `make iso` — repack only (fast) |
+| install logic (`install.sh`, `installer.d/*`) | `make live` → `iso` (no mmdebstrap) |
+| firstboot logic (`firstboot.sh`, `firstboot.d/*`) | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | payload unit, config file, admin user | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | k3s version bump | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
 | payload package | `make base` (slow, rare) → `rootfs` → `image` → `iso` |
@@ -127,9 +128,8 @@ Iteration cost by change:
 |------|---------|
 | `Makefile` | Build targets and package list |
 | `builder.yaml` | Lima VM config (ARM64 VZ + Rosetta, 4 CPU, 8GB RAM, 40GB disk) |
-| `installer/` | `install.sh` + `installer.d/` install steps (disk, bootloader, config) — plain files on the ISO |
-| `live/overlay/` | File tree copied into the live rootfs as-is (installer entrypoint + unit, hostname, networkd) |
+| `installer/` | `machine.conf.example` — the per-machine config template shipped on the ISO |
+| `live/overlay/` | File tree copied into the live rootfs as-is (installer entrypoint + `install.sh` + `installer.d/`, unit, hostname, networkd) |
 | `live/live.d/` | Live env customization steps, glob order (overlay copy, presets) |
-| `firstboot/` | First-boot entry point + `firstboot.d/` node-setup steps (k3s role) |
-| `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, hostname, networkd, presets) |
+| `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, `firstboot.sh` + `firstboot.d/`, hostname, networkd, presets) |
 | `rootfs/rootfs.d/` | Payload customization steps, glob order (overlay copy, admin user, presets) |
