@@ -22,7 +22,11 @@ ARCH="${ARCH:-$(dpkg --print-architecture)}"
 OUTPUT="${1:-$BUILD/appliance-base-rootfs-$ARCH.tar.zst}"
 SUITE="${SUITE:?set SUITE (exported by the Makefile)}"
 MIRROR_URL="${MIRROR_URL:?set MIRROR_URL (exported by the Makefile)}"
-MIRROR="deb $MIRROR_URL $SUITE main restricted universe multiverse"
+# multiverse is deliberately absent: it carries software Ubuntu may not
+# freely redistribute, and these images ship to customers. Leaving it out turns
+# "a dependency quietly pulled something non-redistributable in" into a build
+# failure at the moment it happens.
+MIRROR="deb $MIRROR_URL $SUITE main restricted universe"
 
 PACKAGES=(
     # kernel / boot
