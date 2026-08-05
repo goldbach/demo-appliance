@@ -33,6 +33,10 @@ PACKAGES=(
     systemd systemd-resolved systemd-sysv udev dbus
     # installer: partition, format, write rootfs image
     parted dosfstools e2fsprogs zstd
+    # A/B updates: `rauc install` writes a signed bundle into a slot.
+    # rauc-service carries the systemd unit and D-Bus policy — the CLI is a
+    # D-Bus client that drives that daemon, so both halves are needed.
+    rauc rauc-service
     # signed boot binaries — make-iso.sh extracts shim/grub/kernel/initrd
     # from this tarball; grub is never run inside the live env itself
     "grub-efi-${ARCH}-signed" shim-signed

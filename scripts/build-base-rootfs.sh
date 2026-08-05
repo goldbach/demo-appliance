@@ -41,6 +41,9 @@ PACKAGES=(
     iproute2 iptables conntrack kmod
     # node maintenance: partition, format, EFI boot entry, A/B update images
     parted dosfstools e2fsprogs efibootmgr zstd
+    # A/B updates: rauc applies a signed bundle to the inactive slot.
+    # rauc-service carries the systemd unit and D-Bus policy the CLI drives.
+    rauc rauc-service
     # bootloader (Secure Boot); install runs grub-install chrooted, so the
     # binaries must live in the payload, not the live env
     "grub-efi-${ARCH}-signed" shim-signed

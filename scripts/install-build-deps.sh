@@ -11,6 +11,7 @@ apt-get install -y --no-install-recommends \
     syslinux-common \
     squashfs-tools \
     zstd \
+    rauc \
     curl \
     openssl \
     ca-certificates \
