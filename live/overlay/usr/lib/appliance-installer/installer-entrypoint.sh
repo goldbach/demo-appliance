@@ -86,4 +86,4 @@ export MACHINE_CONF
 # install.sh and its steps are baked into this live env, so they are present
 # however the node booted — ISO, USB or PXE. The medium stays mounted
 # throughout: rootfs.raw.zst and machine.conf are still read from it.
-exec bash /usr/lib/appliance/install.sh "$DISK"
+exec bash /usr/lib/appliance-installer/install.sh "$DISK"

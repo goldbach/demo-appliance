@@ -125,7 +125,7 @@ split exists to keep a frequently-edited thing off the slow path:
 
 Where the install and firstboot logic live follows **where it runs**, not how
 it is delivered: `install.sh` + `installer.d/` are baked into the live env
-(`live/overlay/usr/lib/appliance/`), `firstboot.sh` + `firstboot.d/` into the
+(`live/overlay/usr/lib/appliance-installer/`), `firstboot.sh` + `firstboot.d/` into the
 payload image (`rootfs/overlay/usr/lib/appliance/`). Both are therefore present
 however the node booted — including PXE, where there is no medium to read — and
 firstboot logic now travels with the rootfs, so an A/B update refreshes it.
@@ -165,8 +165,7 @@ Adding a static file to the image is a `git add` under `rootfs/overlay/` — the
 tree mirrors the target layout, so `rootfs/overlay/etc/hostname` becomes
 `/etc/hostname`. Only things needing logic (chroot calls, anything derived from
 `vendor/`) earn a `rootfs.d/` step. Empty directories are the one exception:
-git cannot track them, so `/data` and `/usr/lib/appliance` are `mkdir`ed in
-`00-overlay.sh`.
+git cannot track them, so `/data` is `mkdir`ed in `00-overlay.sh`.
 
 **Do not put the k3s air-gap image tarballs in the overlay.** They are the one
 vendored artifact that deliberately never enters *any* rootfs — see the air-gap
@@ -179,7 +178,7 @@ Rebuild cost by what you touched:
 | Change | Rebuild needed |
 |---|---|
 | `installer/machine.conf.example` | `make iso` only |
-| `live/overlay/usr/lib/appliance/*` (install.sh, installer.d/*) | `make live` → `iso` (no mmdebstrap) |
+| `live/overlay/usr/lib/appliance-installer/*` (install.sh, installer.d/*) | `make live` → `iso` (no mmdebstrap) |
 | `rootfs/overlay/*` (incl. firstboot.sh, firstboot.d/*), `rootfs/rootfs.d/*` | `make rootfs` → `image` → `iso` (no mmdebstrap) |
 | `K3S_VERSION` bump (re-fetch, then re-install the binary) | `make fetch` → `rootfs` → `image` → `iso` (no mmdebstrap) |
 | package list / dpkg excludes in `build-base-rootfs.sh` | `make base` → `rootfs` → `image` → `iso` |
