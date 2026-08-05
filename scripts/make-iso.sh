@@ -3,7 +3,7 @@
 #
 # The ISO boots the micro live rootfs (build-live.sh) as the installer
 # environment (overlayfs over tmpfs). On boot, installer.service launches
-# installer-run.sh, which re-execs install.sh from the installer medium.
+# installer-entrypoint.sh, which re-execs install.sh from the installer medium.
 # install.sh partitions the target disk and writes the bundled payload image
 # (installer/rootfs.raw.zst — the same image systemd-sysupdate writes on A/B
 # updates) to slot A. Frequently-edited scripts (install.sh, installer.d/,

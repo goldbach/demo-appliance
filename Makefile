@@ -70,7 +70,7 @@ $(BASE_TAR): scripts/build-base-rootfs.sh
 $(ROOTFS_TAR): $(BASE_TAR) $(K3S_BIN) $(ROOTFS_OVERLAY) $(ROOTFS_STEPS) scripts/build-rootfs.sh
 	./scripts/build-rootfs.sh
 
-$(LIVE_TAR): installer/installer-run.sh units/installer.service scripts/build-live.sh
+$(LIVE_TAR): installer/installer-entrypoint.sh installer/installer.service scripts/build-live.sh
 	./scripts/build-live.sh
 
 $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh

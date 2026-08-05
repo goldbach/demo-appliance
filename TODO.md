@@ -9,7 +9,7 @@ appears twice.
 
 - **Live env** (`scripts/build-live.sh` → `live/filesystem.squashfs`):
   minimal mmdebstrap build — kernel, systemd, disk tools, live-boot,
-  `installer-run.sh` + `installer.service`. No k3s, ssh, iptables, certs.
+  `installer-entrypoint.sh` + `installer.service`. No k3s, ssh, iptables, certs.
   Shim/grub signed binaries are included only so `make-iso.sh` can extract
   the ISO boot files from the live tar.
 - **Payload** (`scripts/build-rootfs.sh` → `installer/rootfs.raw.zst`):
@@ -17,7 +17,7 @@ appears twice.
   step went with it) and all installer/firstboot scripts.
 - **Scripts on the ISO as plain files** (`/installer/`): `install.sh`,
   `installer.d/`, `firstboot.sh`, `firstboot.d/`, `machine.conf`.
-  `installer-run.sh` re-execs `install.sh` from the mounted medium; the
+  `installer-entrypoint.sh` re-execs `install.sh` from the mounted medium; the
   install copies the firstboot scripts into the target. Iterating on
   firstboot/installer logic = `make iso` repack only, no rootfs rebuild.
 

@@ -97,14 +97,14 @@ make iso ARCH=amd64   # in the builder VM: cross build via Rosetta
 The ISO carries three things, with very different rebuild costs:
 
 1. **Live env** (`live/filesystem.squashfs`) — a minimal rootfs that boots
-   the installer: kernel, systemd, disk tools, and `installer-run.sh`
+   the installer: kernel, systemd, disk tools, and `installer-entrypoint.sh`
    (medium/disk discovery, unattended). Nothing k3s-related.
 2. **Payload image** (`installer/rootfs.raw.zst`) — the full node OS written
    to slot A: k3s, openssh, grub, systemd units. The same image
    systemd-sysupdate writes on A/B updates.
 3. **Plain-file scripts** (`installer/install.sh`, `installer/installer.d/`,
    `installer/firstboot.sh`, `installer/firstboot.d/`,
-   `installer/machine.conf`) — packed onto the ISO as-is. `installer-run.sh`
+   `installer/machine.conf`) — packed onto the ISO as-is. `installer-entrypoint.sh`
    re-execs `install.sh` from the mounted medium, and the install copies the
    firstboot scripts into the target. These are the files you edit most
    often, so they are deliberately *not* baked into either rootfs.
@@ -125,9 +125,8 @@ Iteration cost by change:
 |------|---------|
 | `Makefile` | Build targets and package list |
 | `builder.yaml` | Lima VM config (ARM64 VZ + Rosetta, 4 CPU, 8GB RAM, 40GB disk) |
-| `installer/` | Installer entry points + `installer.d/` install steps (disk, bootloader, config) |
+| `installer/` | Installer entrypoint + `installer.service` + `installer.d/` install steps (disk, bootloader, config) |
 | `firstboot/` | First-boot entry point + `firstboot.d/` node-setup steps (k3s role) |
 | `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, hostname, networkd, presets) |
 | `rootfs/rootfs.d/` | Payload customization steps, glob order (overlay copy, admin user, presets) |
-| `units/` | The live env's installer.service (payload units live in `rootfs/overlay/`) |
 | `sysupdate/` | A/B OTA updates via systemd-sysupdate |

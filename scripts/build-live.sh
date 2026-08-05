@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds the micro live rootfs tarball using mmdebstrap: the minimal
-# environment that boots the installer ISO and runs installer-run.sh.
+# environment that boots the installer ISO and runs installer-entrypoint.sh.
 # The appliance payload (what lands on disk) is build-rootfs.sh — this one
 # only needs to see the install disk and run the installer steps.
 # Runs unprivileged via user namespaces (--mode=unshare).
@@ -57,8 +57,8 @@ mmdebstrap \
     --customize-hook='echo live-boot > "$1/etc/hostname"' \
     --customize-hook='mkdir -p "$1/usr/lib/appliance"' \
     --customize-hook='mkdir -p "$1/etc/systemd/system"' \
-    --customize-hook='copy-in installer/installer-run.sh /usr/lib/appliance/' \
-    --customize-hook='copy-in units/installer.service /etc/systemd/system/' \
+    --customize-hook='copy-in installer/installer-entrypoint.sh /usr/lib/appliance/' \
+    --customize-hook='copy-in installer/installer.service /etc/systemd/system/' \
     --customize-hook='chroot "$1" update-initramfs -u' \
     --customize-hook='chroot "$1" systemctl preset-all' \
     "$SUITES" "$OUTPUT" "$MIRROR"

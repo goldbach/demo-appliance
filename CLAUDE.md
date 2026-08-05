@@ -171,7 +171,7 @@ Rebuild cost by what you touched:
 ## Boot flow (install → firstboot → steady state)
 
 1. **ISO boots** → `installer.service` (gated on `boot=live` in
-   `/proc/cmdline`) runs `installer/installer-run.sh`: finds the installer
+   `/proc/cmdline`) runs `installer/installer-entrypoint.sh`: finds the installer
    medium by looking for `live/filesystem.squashfs`, discovers non-removable
    candidate disks (dies if it's not exactly one — never guesses which disk
    to wipe), waits 5s (a Ctrl-C window for a watching operator, not a
