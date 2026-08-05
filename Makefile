@@ -3,16 +3,23 @@ K3S_VERSION := v1.36.2+k3s1
 ARCH        ?= $(shell dpkg --print-architecture)
 BUILD       := build
 
-# kernel / uname -m spelling of ARCH
+# Ubuntu release the images are built from.
+SUITE       ?= resolute
+
+# kernel / uname -m spelling of ARCH, and the mirror that carries it: amd64
+# lives on archive.ubuntu.com, every other arch on ports.ubuntu.com. Override
+# MIRROR_URL to build against a local mirror or a caching proxy.
 ifeq ($(ARCH),amd64)
 ARCH_KERNEL := x86_64
+MIRROR_URL  ?= http://archive.ubuntu.com/ubuntu/
 else ifeq ($(ARCH),arm64)
 ARCH_KERNEL := aarch64
+MIRROR_URL  ?= http://ports.ubuntu.com/ubuntu-ports/
 else
 $(error unsupported ARCH '$(ARCH)' (amd64|arm64))
 endif
 
-export K3S_VERSION ARCH ARCH_KERNEL
+export K3S_VERSION ARCH ARCH_KERNEL SUITE MIRROR_URL
 
 # --- File targets (make skips when output exists and is newer than deps) ---
 

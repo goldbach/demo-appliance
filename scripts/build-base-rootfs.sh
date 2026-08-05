@@ -20,15 +20,9 @@ set -euo pipefail
 BUILD="${BUILD:-build}"
 ARCH="${ARCH:-$(dpkg --print-architecture)}"
 OUTPUT="${1:-$BUILD/appliance-base-rootfs-$ARCH.tar.zst}"
-SUITES="resolute"
-
-# amd64 lives on archive.ubuntu.com; every other arch on ports.ubuntu.com
-case "$ARCH" in
-    amd64) MIRROR_URL="http://archive.ubuntu.com/ubuntu/" ;;
-    arm64) MIRROR_URL="http://ports.ubuntu.com/ubuntu-ports/" ;;
-    *) echo "[build-base-rootfs] ERROR: unsupported ARCH '$ARCH' (amd64|arm64)" >&2; exit 1 ;;
-esac
-MIRROR="deb $MIRROR_URL $SUITES main restricted universe multiverse"
+SUITE="${SUITE:?set SUITE (exported by the Makefile)}"
+MIRROR_URL="${MIRROR_URL:?set MIRROR_URL (exported by the Makefile)}"
+MIRROR="deb $MIRROR_URL $SUITE main restricted universe multiverse"
 
 PACKAGES=(
     # kernel / boot
@@ -59,6 +53,9 @@ log() { echo "[build-base-rootfs] $*"; }
 export TMPDIR="${TMPDIR:-/var/tmp}"
 mkdir -p "$BUILD"
 
+log "Suite:  $SUITE ($ARCH)"
+log "Mirror: $MIRROR_URL"
+
 # shellcheck disable=SC2016
 mmdebstrap \
     --mode=unshare \
@@ -71,6 +68,6 @@ mmdebstrap \
     --dpkgopt='path-include=/usr/share/locale/locale.alias' \
     --dpkgopt='path-exclude=/usr/share/doc/*' \
     --customize-hook='chroot "$1" update-initramfs -u' \
-    "$SUITES" "$OUTPUT" "$MIRROR"
+    "$SUITE" "$OUTPUT" "$MIRROR"
 
 log "Base rootfs tar: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"

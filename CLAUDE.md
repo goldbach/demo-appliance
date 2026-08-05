@@ -43,6 +43,7 @@ make boot-headless    # same, serial console — pick "serial console" grub entr
 PROXMOX_HOST=<host> make boot-proxmox   # throwaway Secure Boot VM on real Proxmox (amd64 only)
 
 make iso ARCH=amd64   # cross build via Rosetta (only supported cross direction)
+MIRROR_URL=http://apt.local/ubuntu make base   # build against a local mirror
 make clean            # rm -rf build/
 make distclean        # clean + wipe vendor/ (forces k3s re-fetch)
 ```
@@ -287,6 +288,11 @@ OS-level only".
 - `ARCH` is always `amd64` or `arm64` (Debian arch spelling); scripts that need
   the kernel/uname spelling derive `ARCH_KERNEL` (`x86_64`/`aarch64`)
   themselves rather than accepting it as a separate input where avoidable.
+- The Makefile is the build's config surface: `SUITE`, `MIRROR_URL`,
+  `K3S_VERSION`, `ARCH` and friends are defined and exported there, and the
+  build scripts require them (`${SUITE:?...}`) rather than carrying their own
+  defaults. Overriding is `MIRROR_URL=... make base`; running a script
+  standalone means passing them in the environment.
 - Numbered step scripts (`installer.d/NN-*.sh`, `firstboot.d/NN-*.sh`,
   `rootfs/build-rootfs.d/NN-*.sh`, `live/build-live.d/NN-*.sh`) run in glob order and communicate via exported
   shell variables set by their parent entry point — not via files or return
