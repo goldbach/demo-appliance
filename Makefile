@@ -34,6 +34,16 @@ LIVE_TAR           := $(BUILD)/live-rootfs-$(ARCH).tar.zst
 ROOTFS_RAW         := $(BUILD)/rootfs-$(ARCH).raw
 ROOTFS_ZST         := $(ROOTFS_RAW).zst
 ISO                := $(BUILD)/appliance-$(ARCH).iso
+BUNDLE             := $(BUILD)/appliance-$(ARCH)-$(VERSION).raucb
+
+# RAUC bundle signing. The default key is self-signed and generated on demand
+# by make-rauc-keys.sh; override both to sign with a real one. RAUC_COMPATIBLE
+# must match the appliance's /etc/rauc/system.conf, which is why it is spelled
+# out here rather than left to the bundle script.
+RAUC_CERT       ?= keys/rauc-dev-cert.pem
+RAUC_KEY        ?= keys/rauc-dev-key.pem
+RAUC_COMPATIBLE ?= demo-appliance-$(ARCH)
+export VERSION RAUC_CERT RAUC_KEY RAUC_COMPATIBLE
 # Vendored downloads carry K3S_VERSION in their filenames: the artifact IS the
 # stamp, so a version bump makes these targets "missing" and triggers a fetch.
 # Old versions stay on disk, so switching back and forth costs no re-download.
@@ -49,7 +59,7 @@ ROOTFS_STEPS   := $(wildcard rootfs/build-rootfs.d/*.sh)
 LIVE_OVERLAY   := $(shell find live/overlay -type f 2>/dev/null)
 LIVE_STEPS     := $(wildcard live/build-live.d/*.sh)
 
-.PHONY: all deps fetch live-base live base rootfs image iso iso-info clean distclean clean-iso clean-live-base clean-live clean-base clean-rootfs boot boot-headless boot-proxmox
+.PHONY: all deps fetch live-base live base rootfs image iso iso-info bundle bundle-info rauc-keys clean distclean clean-iso clean-live-base clean-live clean-base clean-rootfs clean-bundle boot boot-headless boot-proxmox
 
 all: iso
 
@@ -90,6 +100,15 @@ $(ROOTFS_ZST): $(ROOTFS_TAR) ./scripts/make-image.sh
 $(ISO): $(LIVE_TAR) $(ROOTFS_ZST) $(K3S_IMAGES) ./scripts/make-iso.sh
 	./scripts/make-iso.sh $(LIVE_TAR) $(ROOTFS_ZST) $@
 
+# The A/B update artifact: the same partition image the ISO installs, wrapped
+# in a signed squashfs bundle. Cheap — no rootfs rebuild, and the bundle is
+# the only thing an update ships.
+$(RAUC_CERT) $(RAUC_KEY) &: scripts/make-rauc-keys.sh
+	./scripts/make-rauc-keys.sh
+
+$(BUNDLE): $(ROOTFS_ZST) $(RAUC_CERT) $(RAUC_KEY) ./scripts/make-bundle.sh
+	./scripts/make-bundle.sh $(ROOTFS_ZST) $@
+
 # Convenience aliases (for manual runs)
 
 fetch: $(K3S_BIN) $(K3S_IMAGES)
@@ -99,9 +118,17 @@ base: $(APPLIANCE_BASE_TAR)
 rootfs: $(ROOTFS_TAR)
 image: $(ROOTFS_ZST)
 iso: $(ISO)
+bundle: $(BUNDLE)
+rauc-keys: $(RAUC_CERT) $(RAUC_KEY)
 
 iso-info: $(ISO)
 	xorriso -indev "$<" -find / 2>/dev/null
+
+# The signing cert doubles as the keyring: it is self-signed, so it is its own
+# CA. Verification is the point — without --keyring, info has nothing to check
+# the bundle's signature against.
+bundle-info: $(BUNDLE)
+	rauc info --keyring=$(RAUC_CERT) "$<"
 
 clean:
 	rm -rf $(BUILD)
@@ -124,6 +151,9 @@ clean-base:
 
 clean-rootfs:
 	rm -f $(ROOTFS_TAR)
+
+clean-bundle:
+	rm -f $(BUNDLE)
 
 # --- Boot the ISO in QEMU (on macOS: run inside the builder VM, see README) ---
 # accel=kvm:tcg picks KVM when the host arch matches, emulation otherwise.
