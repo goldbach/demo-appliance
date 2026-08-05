@@ -2,6 +2,7 @@
 set -euo pipefail
 apt-get update
 apt-get install -y --no-install-recommends \
+    make \
     mmdebstrap \
     uidmap \
     fakeroot \
