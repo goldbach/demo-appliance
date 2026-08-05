@@ -5,8 +5,8 @@
 # environment (overlayfs over tmpfs). On boot, installer.service launches
 # installer-entrypoint.sh, which re-execs install.sh from the installer medium.
 # install.sh partitions the target disk and writes the bundled payload image
-# (installer/rootfs.raw.zst — the same image systemd-sysupdate writes on A/B
-# updates) to slot A. Frequently-edited scripts (install.sh, installer.d/,
+# (installer/rootfs.raw.zst — the same image an A/B update writes into the
+# inactive slot) to slot A. Frequently-edited scripts (install.sh, installer.d/,
 # firstboot.sh, firstboot.d/) are plain files on the ISO, so iterating on
 # them only requires an ISO repack, not a rootfs rebuild.
 #

@@ -101,8 +101,8 @@ The ISO carries three things, with very different rebuild costs:
    the installer: kernel, systemd, disk tools, and `installer-entrypoint.sh`
    (medium/disk discovery, unattended). Nothing k3s-related.
 2. **Payload image** (`installer/rootfs.raw.zst`) — the full node OS written
-   to slot A: k3s, openssh, grub, systemd units. The same image
-   systemd-sysupdate writes on A/B updates.
+   to slot A: k3s, openssh, grub, systemd units. The same image an A/B
+   update writes into the inactive slot.
 3. **Plain-file scripts** (`installer/install.sh`, `installer/installer.d/`,
    `installer/firstboot.sh`, `installer/firstboot.d/`,
    `installer/machine.conf`) — packed onto the ISO as-is. `installer-entrypoint.sh`
@@ -133,4 +133,3 @@ Iteration cost by change:
 | `firstboot/` | First-boot entry point + `firstboot.d/` node-setup steps (k3s role) |
 | `rootfs/overlay/` | File tree copied into the payload rootfs as-is (units, hostname, networkd, presets) |
 | `rootfs/rootfs.d/` | Payload customization steps, glob order (overlay copy, admin user, presets) |
-| `sysupdate/` | A/B OTA updates via systemd-sysupdate |

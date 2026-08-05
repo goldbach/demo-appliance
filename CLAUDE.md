@@ -115,9 +115,9 @@ split exists to keep a frequently-edited thing off the slow path:
    (`rootfs-$ARCH.raw.zst`) — the base with everything that makes it an
    appliance applied on top: `rootfs/overlay/` and `rootfs/rootfs.d/`, the
    latter including the vendored k3s binary (`05-vendor.sh`). No apt, no
-   network, seconds rather than minutes. **This image is also what
-   systemd-sysupdate writes into the inactive slot on A/B updates** — install
-   and update share one artifact.
+   network, seconds rather than minutes. **This image is also what an A/B
+   update writes into the inactive slot** — install and update share one
+   artifact.
 5. **Plain files on the ISO** (`installer/install.sh`, `installer/installer.d/`,
    `firstboot/firstboot.sh`, `firstboot/firstboot.d/`, `machine.conf`) — copied
    onto the ISO as-is by `make-iso.sh`, never baked into any rootfs. Editing
@@ -249,11 +249,12 @@ keeping them in step with a k3s version bump across an A/B update.
 ## In-flight work: A/B updates
 
 The partition layout (EFI + rootfs-a + rootfs-b + data) already exists, but the
-update mechanism is only partially wired — **read `TODO.md` before touching
-anything sysupdate/bootloader/rollback-related**, it has the current design
-decisions and open blockers in detail. Short version of the division of
-labor: slot selection is GRUB's job (`root=PARTUUID=`), staging an update is
-`systemd-sysupdate`'s job (raw write to the inactive slot), fallback is a
+update mechanism is unbuilt — **read `TODO.md` before touching anything
+A/B-update/bootloader/rollback-related**, it has the current design decisions
+and open blockers in detail. Short version of the division of labor: slot
+selection is the bootloader's job (`root=PARTUUID=`), staging an update means a
+raw write into the inactive slot by some updater (**which one is undecided** —
+systemd-sysupdate, RAUC and friends are compared in TODO.md), and fallback is a
 bootloader feature GRUB doesn't have natively (unlike systemd-boot) — the glue
 for grubenv-based one-shot fallback + a mark-good health check is not yet
 implemented. Also unresolved: `/data` is not slot-scoped, so an OS rollback

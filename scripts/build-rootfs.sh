@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds the Appliance payload rootfs tarball: the full node OS that install.sh
-# writes to disk and systemd-sysupdate later writes on A/B updates.
+# writes to disk and an A/B update later writes into the inactive slot.
 #
 # This is the *customization* layer. It takes the base tarball built by
 # build-base-rootfs.sh (stock Ubuntu + vendored binaries), applies everything
