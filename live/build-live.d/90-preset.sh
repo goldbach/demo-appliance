@@ -7,7 +7,7 @@ set -euo pipefail
 
 ROOT="${1:?missing rootfs dir}"
 
-log() { echo "[live:90-preset] $*"; }
+log() { echo "[build-live:90-preset] $*"; }
 
 # preset-all only manipulates symlinks under the given tree, so the host
 # systemctl with --root does the job and stays inside fakeroot.

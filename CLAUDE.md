@@ -203,12 +203,15 @@ Rebuild cost by what you touched:
      and data get formatted here; rootfs-a's filesystem comes from the image
      itself (see partition-label vs fs-label note in that file).
    - `20-rootfs.sh` — `zstd -dc | dd` the payload image into rootfs-a, grow
-     it, mount at `/mnt`.
+     it, mount at `$TARGET` (`/mnt` by default).
+   - `21-fstab.sh` — writes `/etc/fstab` from the partition UUIDs. Ordered
+     before the bootloader only for readability; `grub-mkconfig` resolves the
+     root device with `grub-probe`, so it never reads fstab.
    - `30-bootloader.sh` — `chroot grub-install` (Secure Boot, no `--no-nvram`
      so it registers an EFI boot entry ahead of removable media).
-   - `50-config.sh` — writes `/etc/fstab` and `/etc/appliance/machine.conf`
-     (built-in default: single-node server), enables `firstboot.service`. The
-     firstboot scripts themselves are already in the image.
+   - `50-config.sh` — writes `/etc/appliance/machine.conf` (built-in default:
+     single-node server), enables `firstboot.service`. The firstboot scripts
+     themselves are already in the image.
    - `60-airgap.sh` — copies bundled k3s air-gap image tarballs to the data
      partition.
    - `90-unmount.sh` — `umount -R /mnt`.
@@ -274,7 +277,7 @@ OS-level only".
   passwordless-sudo capable, ssh password auth enabled) into every image.
   Documented as demo-phase-only in `TODO.md` ("Baked-in admin user") — don't
   "fix" this without checking that section first, there's a chosen direction.
-- Root filesystem is mounted rw (`50-config.sh` fstab), not yet read-only;
+- Root filesystem is mounted rw (`21-fstab.sh`), not yet read-only;
   this is intentional until the `/data`-backed overlay work lands.
 - SSH host keys are currently baked into the image at build time (not
   regenerated/persisted per-machine) — flagged as a TODO, not yet fixed.

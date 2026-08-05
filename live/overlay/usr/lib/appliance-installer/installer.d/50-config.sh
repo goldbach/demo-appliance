@@ -1,23 +1,10 @@
 #!/bin/bash
-# Install step: write /etc/fstab and the machine config, enable firstboot.
+# Install step: write the machine config and enable firstboot.
 set -euo pipefail
 
 log() { echo "[install:config] $*"; }
 
-log "Writing /etc/fstab..."
-# root stays rw for now: firstboot, ssh host keys, timesync etc. need writable
-# /etc//var. ro root comes back with the A/B work, together with the
-# writable-path plumbing (/data-backed overlays) it requires.
-EFI_UUID=$(blkid -s UUID -o value "$EFI_PART")
-ROOT_UUID=$(blkid -s UUID -o value "$ROOTFS_A")
-DATA_UUID=$(blkid -s UUID -o value "$DATA_PART")
-cat > "$TARGET/etc/fstab" <<EOF
-UUID=$EFI_UUID   /boot/efi  vfat  umask=0077                    0 1
-UUID=$ROOT_UUID  /          ext4  defaults                       0 1
-UUID=$DATA_UUID  /data      ext4  defaults,x-systemd.makefs      0 2
-EOF
-
-# Demo default: a single-node server with a placeholder token. Installing an
+# Demo default: a single-node server with a placeholder token. Installing a
 # worker, or setting a real token, currently means editing this heredoc and
 # rebuilding the live env — see TODO "machine.conf: resolve from the kernel
 # cmdline" for the intended replacement.

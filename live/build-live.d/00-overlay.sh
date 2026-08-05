@@ -9,7 +9,7 @@ set -euo pipefail
 ROOT="${1:?missing rootfs dir}"
 OVERLAY="${OVERLAY:-live/overlay}"
 
-log() { echo "[live:00-overlay] $*"; }
+log() { echo "[build-live:00-overlay] $*"; }
 
 # --owner/--group force 0:0: the checkout's files belong to the build user, and
 # that ownership must not reach the image (the uid-501 bug, commit 9b80098, and
