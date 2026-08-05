@@ -5,4 +5,4 @@ set -euo pipefail
 log() { echo "[install:unmount] $*"; }
 
 log "Unmounting..."
-umount -R /mnt
+umount -R "$TARGET"

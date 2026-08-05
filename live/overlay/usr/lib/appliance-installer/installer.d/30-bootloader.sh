@@ -14,8 +14,8 @@ esac
 # it first in BootOrder, so the box boots from disk after install even with
 # the installer medium still attached (firmware prefers removable media).
 log "Installing GRUB..."
-chroot /mnt grub-install \
+chroot "$TARGET" grub-install \
     --target="$GRUB_TARGET" \
     --efi-directory=/boot/efi \
     --bootloader-id=appliance
-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg

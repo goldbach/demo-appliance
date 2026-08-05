@@ -1,6 +1,6 @@
 #!/bin/bash
 # Install step: write the rootfs image to slot A, grow it to fill the slot,
-# and mount the target system at /mnt.
+# and mount the target system at $TARGET.
 set -euo pipefail
 
 log() { echo "[install:rootfs] $*"; }
@@ -13,11 +13,12 @@ e2fsck -fy "$ROOTFS_A"
 resize2fs "$ROOTFS_A"
 
 log "Mounting target rootfs..."
-mount "$ROOTFS_A" /mnt
+mkdir -p "$TARGET"
+mount "$ROOTFS_A" "$TARGET"
 
-mkdir -p /mnt/boot/efi
-mount "$EFI_PART" /mnt/boot/efi
-mount --bind /dev  /mnt/dev
-mount --bind /proc /mnt/proc
-mount --bind /sys  /mnt/sys
-mount --bind /sys/firmware/efi/efivars /mnt/sys/firmware/efi/efivars 2>/dev/null || true
+mkdir -p "$TARGET/boot/efi"
+mount "$EFI_PART" "$TARGET/boot/efi"
+mount --bind /dev  "$TARGET/dev"
+mount --bind /proc "$TARGET/proc"
+mount --bind /sys  "$TARGET/sys"
+mount --bind /sys/firmware/efi/efivars "$TARGET/sys/firmware/efi/efivars" 2>/dev/null || true

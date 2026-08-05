@@ -11,7 +11,7 @@ log "Writing /etc/fstab..."
 EFI_UUID=$(blkid -s UUID -o value "$EFI_PART")
 ROOT_UUID=$(blkid -s UUID -o value "$ROOTFS_A")
 DATA_UUID=$(blkid -s UUID -o value "$DATA_PART")
-cat > /mnt/etc/fstab <<EOF
+cat > "$TARGET/etc/fstab" <<EOF
 UUID=$EFI_UUID   /boot/efi  vfat  umask=0077                    0 1
 UUID=$ROOT_UUID  /          ext4  defaults                       0 1
 UUID=$DATA_UUID  /data      ext4  defaults,x-systemd.makefs      0 2
@@ -22,9 +22,9 @@ EOF
 # rebuilding the live env — see TODO "machine.conf: resolve from the kernel
 # cmdline" for the intended replacement.
 log "Writing machine config..."
-mkdir -p /mnt/etc/appliance
-install -m 0600 /dev/null /mnt/etc/appliance/machine.conf
-cat > /mnt/etc/appliance/machine.conf <<'EOF'
+mkdir -p "$TARGET/etc/appliance"
+install -m 0600 /dev/null "$TARGET/etc/appliance/machine.conf"
+cat > "$TARGET/etc/appliance/machine.conf" <<'EOF'
 # Written by installer.d/50-config.sh. Consumed by firstboot.sh.
 
 # Role of this node: server | worker
@@ -47,4 +47,4 @@ EOF
 # A/B update refreshes them along with everything else. Nothing to copy here.
 
 log "Enabling first-boot unit..."
-chroot /mnt systemctl enable firstboot.service
+chroot "$TARGET" systemctl enable firstboot.service

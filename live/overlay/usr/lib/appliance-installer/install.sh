@@ -13,6 +13,10 @@ export ROOTFS_IMAGE="${ROOTFS_IMAGE:?ROOTFS_IMAGE not set}"
 export EFI_SIZE=512
 export ROOTFS_SIZE=10240   # 10 GiB per A/B slot
 
+# Where 20-rootfs.sh mounts the installed system and 90-unmount.sh tears it
+# down; every step in between writes under it.
+export TARGET="${TARGET:-/mnt}"
+
 STEPS_DIR="$(dirname "$0")/installer.d"
 
 log() { echo "[install] $*"; }

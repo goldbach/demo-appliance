@@ -5,11 +5,11 @@ set -euo pipefail
 log() { echo "[install:airgap] $*"; }
 
 log "Copying k3s air-gap images to data partition..."
-mount "$DATA_PART" /mnt/data 2>/dev/null || true
-if [ -d /mnt/data ]; then
-    mkdir -p /mnt/data/k3s-images
+mount "$DATA_PART" "$TARGET/data" 2>/dev/null || true
+if [ -d "$TARGET/data" ]; then
+    mkdir -p "$TARGET/data/k3s-images"
     if [ -d "$(dirname "$ROOTFS_IMAGE")/../k3s-images" ]; then
-        cp -v "$(dirname "$ROOTFS_IMAGE")"/../k3s-images/*.tar.zst /mnt/data/k3s-images/ || true
+        cp -v "$(dirname "$ROOTFS_IMAGE")"/../k3s-images/*.tar.zst "$TARGET/data/k3s-images/" || true
     fi
-    umount /mnt/data
+    umount "$TARGET/data"
 fi
