@@ -3,10 +3,10 @@
 # base build. Left in place, every appliance built from a given image would
 # answer with the same host key.
 #
-# Regeneration needs no code of ours: sshd-keygen.service ships enabled and
-# ordered Before=ssh.service, and runs `ssh-keygen -A` when ConditionFirstBoot
-# holds — which it does, because /etc/machine-id ships empty. `ssh-keygen -A`
-# only creates keys that are missing, so removing them here is what lets it act.
+# Per-machine keys are generated at install time by
+# installer.d/40-ssh-hostkeys.sh. The distro's sshd-keygen.service would
+# normally cover this, but it is gated on ConditionFirstBoot, which never holds
+# on this image — see the comment there and TODO "SSH host keys".
 #
 # Usage: 20-remove-ssh-hostkeys.sh <rootfs-dir>   (run inside build-rootfs.sh's fakeroot)
 set -euo pipefail

@@ -153,18 +153,38 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
 
 - `/etc/machine-id` → store at `/data/machine-id`, copy in early boot
   before `systemd-machine-id-commit.service`.
-- SSH host keys → persist to `/data`. **Only persistence is left** — the
-  keys openssh-server's postinst baked in are now removed at build time by
-  `rootfs/build-rootfs.d/20-remove-ssh-hostkeys.sh` (2026-08-05), and regeneration
-  needs no code of ours: `sshd-keygen.service` ships enabled, ordered
-  `Before=ssh.service`, and runs `ssh-keygen -A` under `ConditionFirstBoot`,
-  which holds because `/etc/machine-id` ships empty.
-  **Consequence until this lands:** `/etc/ssh` is per-slot, so an A/B update
-  boots slot B with no keys and regenerates them — the host key changes on
-  every OS update and clients see `REMOTE HOST IDENTIFICATION HAS CHANGED`.
-  Previously masked because the baked-in key was accidentally A/B-stable.
-  Same fix and same early-boot ordering as `/etc/machine-id` above; do them
-  together.
+- SSH host keys → persist to `/data`. **Only persistence is left.** Keys
+  openssh-server's postinst baked in are removed at build time
+  (`rootfs/build-rootfs.d/20-remove-ssh-hostkeys.sh`) and regenerated per
+  machine at install time (`installer.d/40-ssh-hostkeys.sh`, 2026-08-05).
+
+  **`ConditionFirstBoot` cannot be used on this image — confirmed, don't retry
+  it.** `sshd-keygen.service` would normally cover this, but the first boot's
+  journal shows why it never runs:
+
+  ```
+  systemd[1]: Installed transient '/etc/machine-id' file.
+  systemd[1]: first-boot-complete.target ... skipped, unmet ConditionFirstBoot=yes
+  systemd[1]: Starting systemd-machine-id-commit.service ...
+  systemd[1]: sshd-keygen.service ... skipped, unmet ConditionFirstBoot=yes
+  ```
+
+  `grub-mkconfig` emits `ro`, so PID1 cannot write `/etc/machine-id`; it
+  installs a transient one and never sets the first-boot flag.
+  `machine_id_setup()` runs inside PID1 init, *before* the unit graph exists,
+  so `systemd-remount-fs.service` is necessarily too late — a chicken-and-egg
+  no image with an empty machine-id and `ro` root can win.
+  `systemd-machine-id-commit.service` persists the ID afterwards, which is why
+  machine-id looks healthy while first-boot never fired. A stock Ubuntu install
+  never hits this: its host keys come from the postinst running *on the target*,
+  so first-boot is not load-bearing there. Our install step restores exactly
+  that behaviour.
+
+  **Consequence until `/data` persistence lands:** `/etc/ssh` is per-slot and
+  the installer does not run for a sysupdate-written slot B, so **slot B boots
+  with no host keys at all and sshd fails to start** — worse than key rotation.
+  This makes persistence a hard blocker for A/B, not a nicety. Same fix and same
+  early-boot ordering as `/etc/machine-id` above; do them together.
 - `machine.conf`, k3s `config.yaml` (`K3S_CONFIG_FILE`), hostname, per-node
   netplan, admin `authorized_keys` → `/data`.
 - `/var/log/journal` → `/data` (`Storage=persistent`): cross-slot logs, so

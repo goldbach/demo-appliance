@@ -209,6 +209,9 @@ Rebuild cost by what you touched:
      root device with `grub-probe`, so it never reads fstab.
    - `30-bootloader.sh` — `chroot grub-install` (Secure Boot, no `--no-nvram`
      so it registers an EFI boot entry ahead of removable media).
+   - `40-ssh-hostkeys.sh` — `chroot ssh-keygen -A`, giving each machine its own
+     host keys. The build strips the ones openssh's postinst baked in, and
+     `sshd-keygen.service` can't cover it — see the note below.
    - `50-config.sh` — writes `/etc/appliance/machine.conf` (built-in default:
      single-node server), enables `firstboot.service`. The firstboot scripts
      themselves are already in the image.
@@ -280,11 +283,14 @@ OS-level only".
 - Root filesystem is mounted rw (`21-fstab.sh`), not yet read-only;
   this is intentional until the `/data`-backed overlay work lands.
 - SSH host keys are removed at build time
-  (`build-rootfs.d/20-remove-ssh-hostkeys.sh`)
-  so each machine generates its own on first boot via the distro's own
-  `sshd-keygen.service`. They are **not** yet persisted to `/data`, so an A/B
-  update regenerates them and the host key changes — see TODO "Shared state on
-  `/data`".
+  (`build-rootfs.d/20-remove-ssh-hostkeys.sh`) and regenerated per machine at
+  install time (`installer.d/40-ssh-hostkeys.sh`). The distro's
+  `sshd-keygen.service` is deliberately **not** relied on: it is gated on
+  `ConditionFirstBoot`, which can never hold here — root is mounted `ro`, so
+  PID1 installs a transient `/etc/machine-id` and never sets the first-boot
+  flag. Confirmed from a first-boot journal; the trace is in TODO "Shared state
+  on `/data`", along with the remaining blocker — keys are not yet persisted to
+  `/data`, so a sysupdate-written slot B would boot with none at all.
 
 ## Conventions in this repo
 
