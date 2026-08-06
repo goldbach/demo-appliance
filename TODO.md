@@ -7,19 +7,27 @@ payload was already a partition image (`installer/rootfs.raw.zst`), not a
 squashfs, so the split *does* shrink the ISO — the full rootfs no longer
 appears twice.
 
-- **Live env** (`scripts/build-live.sh` → `live/filesystem.squashfs`):
-  minimal mmdebstrap build — kernel, systemd, disk tools, live-boot,
-  `installer-entrypoint.sh` + `installer.service`. No k3s, ssh, iptables, certs.
-  Shim/grub signed binaries are included only so `make-iso.sh` can extract
-  the ISO boot files from the live tar.
-- **Payload** (`scripts/build-rootfs.sh` → `installer/rootfs.raw.zst`):
-  unchanged full node OS. Lost `live-boot*` (the installer's initrd-purge
-  step went with it) and all installer/firstboot scripts.
-- **Scripts on the ISO as plain files** (`/installer/`): `install.sh`,
-  `installer.d/`, `firstboot.sh`, `firstboot.d/`, `machine.conf`.
-  `installer-entrypoint.sh` re-execs `install.sh` from the mounted medium; the
-  install copies the firstboot scripts into the target. Iterating on
-  firstboot/installer logic = `make iso` repack only, no rootfs rebuild.
+- **Live env** — minimal mmdebstrap build: kernel, systemd, disk tools,
+  live-boot, `installer-entrypoint.sh` + `installer.service`. No k3s, no
+  iptables. Shim/grub signed binaries are included only so `make-iso.sh` can
+  extract the ISO boot files from the live tar.
+- **Payload** — unchanged full node OS. Lost `live-boot*` (the installer's
+  initrd-purge step went with it).
+
+**Superseded 2026-08-05 by the layered split** (see CLAUDE.md "Architecture"),
+which changed both the file names and where the logic lives:
+
+- Each half became two builds — `build-live-base.sh` + `build-live.sh`, and
+  `build-base-rootfs.sh` + `build-rootfs.sh` — so package-list changes and
+  overlay edits no longer cost the same.
+- **The ISO no longer carries loose scripts.** `install.sh` + `installer.d/`
+  are baked into the live env (`live/overlay/usr/lib/appliance-installer/`),
+  `firstboot.sh` + `firstboot.d/` into the payload image
+  (`rootfs/overlay/usr/lib/appliance/`) — split by *where the code runs*, so
+  both are present however the node booted, PXE included. The ISO holds the
+  payload image and the k3s air-gap tarballs, nothing else.
+- Rebuild cost moved with them: firstboot edits are now `make rootfs` → `image`
+  → `iso`, not an ISO repack. Installer edits stay at `make live` → `iso`.
 
 Original sketch (kept for the follow-on notes): live env would drop
 containerd, k3s, and nvidia/amdgpu/wifi/bt/modem firmware unconditionally —
@@ -44,8 +52,8 @@ separate `mksquashfs` pass.
   used today, and there's no `--format-options` flag to change it — keeping
   zstd means bypassing the shortcut with a manual
   `mmdebstrap | mmtarfilter | tar2sqfs --compressor zstd` pipe instead.
-- The hostname blocker is gone: `build-live.sh` bakes `live-boot` in via its
-  own `customize-hook` (the split's whole point). Remaining blocker:
+- The hostname blocker is gone: `live-boot` is in `build-live-base.sh`'s
+  package list and the hostname comes from `live/overlay/`. Remaining blocker:
   `make-iso.sh` still needs the tar to pull standalone
   kernel/initrd/grub/shim files (`tar -tf`/`tar -xf` would become
   `unsquashfs -f -d dest image path...` — doable, but a rewrite, not a
@@ -53,15 +61,21 @@ separate `mksquashfs` pass.
 
 ## A/B rootfs updates (design chat 2026-07-29)
 
-Partition layout already exists (`install.sh`: EFI + rootfs-a + rootfs-b +
-data). Division of labor established in the chat: **slot selection is the
-bootloader's job** (`root=PARTUUID=` on the kernel cmdline — nothing in
-systemd picks A vs B), **staging the update is an updater's job** (raw block
-write into the inactive slot, refusing the booted one — *which* updater is
-still open, see below), and **fallback/boot-counting is a bootloader feature**
-(systemd-boot has it built in; GRUB doesn't — see below).
+Partition layout already exists (`installer.d/10-partition.sh`: EFI +
+rootfs-a + rootfs-b + data). Division of labor established in the chat:
+**slot selection is the bootloader's job** (`root=PARTUUID=` on the kernel
+cmdline — nothing in systemd picks A vs B), **staging the update is an
+updater's job** (raw block write into the inactive slot, refusing the booted
+one — RAUC, as of 2026-08-06), and **fallback/boot-counting is a bootloader
+feature** (systemd-boot has it built in; GRUB doesn't — see below).
 
-### Update mechanism — UNDECIDED (sysupdate / RAUC / friends)
+### Update mechanism — RAUC (chosen 2026-08-06)
+
+Acted on, not merely picked: `rauc` + `rauc-service` are in both the payload
+and the live env, `rauc` is a build dep, and `make bundle` produces a signed
+verity bundle. What is *configured* on the appliance is still nothing — see
+"Going full RAUC" below for the remaining work. The candidate comparison is
+kept as the decision record.
 
 `sysupdate/10-rootfs.conf` was **deleted 2026-08-05**. It was a sketch that
 shipped nowhere: no Makefile target referenced it, it was not on the ISO nor in
@@ -103,24 +117,124 @@ an unbuilt design look like wired config. The options live here instead.
 natively, or do we hand-roll it; (2) how much Secure Boot work it costs;
 (3) air-gap delivery; (4) how much new dependency lands in the payload.
 
-**If we land on systemd-sysupdate**, the config notes from the deleted file
-still apply:
+**Not taken (sysupdate), kept so it is not re-litigated:** `MatchPattern` needs
+a version in the artifact name (`@v` is its only pattern variable, installed
+versions tracked in GPT partition labels) plus `InstancesMax=2`, and a publish
+side of `rootfs-<ver>.raw.zst` + `SHA256SUMS`. RAUC needs none of that — the
+version lives in the bundle manifest, and `make bundle` already stamps
+`$(VERSION)` into both the manifest and the `.raucb` filename.
 
-- `MatchPattern=rootfs-@{other}` is not real sysupdate syntax. Alternation
-  is automatic: match by partition type (`MatchPartitionType=root-x86-64`)
-  or a label pattern, and sysupdate writes whichever instance is not backing
-  `/`. `@v` (version) is the only pattern variable; installed versions are
-  tracked in GPT partition labels.
-- Add `InstancesMax=2` to pin the two-slot scheme.
-- Publish side: static dir with `rootfs-<ver>.raw.zst` + `SHA256SUMS`
-  (+ optional `SHA256SUMS.gpg`); USB air-gap = `Path=file://` override.
+**Was a blocker for sysupdate, dissolved by RAUC:** `make-image.sh` still emits
+`rootfs-$ARCH.raw.zst` with no version in the name. That is fine now — the
+bundle carries the version. Still worth a version-stamped image name if a
+PXE/network install ever needs the raw image URL-addressable.
 
-**Blocker common to every candidate:** `make-image.sh` emits
-`rootfs-$ARCH.raw.zst` — arch, no version — so nothing can match on a version
-today. It needs a version-stamped name, the same pattern `vendor/` now uses
-where the filename carries the version and doubles as the fetch stamp. That
-also makes the image URL-addressable, which a PXE/network install would want —
-it needs the identical artifact, fetched rather than found on a medium.
+### Going full RAUC — what's left
+
+**In place (2026-08-06):** `rauc`+`rauc-service` in the payload and the live
+env, `rauc` as a build dep, `make bundle` / `make rauc-keys` / `make
+bundle-info`. The bundle is `verity` format and its `rootfs.ext4` is
+byte-identical to the image the ISO installs (checksums compared, 2026-08-06) —
+install and update genuinely share one artifact.
+
+**None of it does anything yet.** There is no `/etc/rauc/system.conf` and no
+keyring on the appliance, so `rauc status` on an installed box reports nothing.
+Work in dependency order:
+
+**1. `system.conf` — generated, not a static overlay file.**
+
+```ini
+[system]
+compatible=demo-appliance-<arch>
+bootloader=grub
+grubenv=/boot/efi/EFI/appliance/grubenv
+data-directory=/data/rauc
+
+[keyring]
+path=/etc/rauc/keyring.pem
+
+[slot.rootfs.0]
+device=/dev/disk/by-partlabel/rootfs-a
+type=ext4
+bootname=A
+resize=true
+
+[slot.rootfs.1]
+device=/dev/disk/by-partlabel/rootfs-b
+type=ext4
+bootname=B
+resize=true
+```
+
+- `compatible` embeds `$ARCH`, so this cannot be a plain `rootfs/overlay/` file
+  — it needs a `build-rootfs.d` step (same shape as `05-vendor.sh`). It must
+  equal `RAUC_COMPATIBLE` from the Makefile; have the step read the exported
+  value rather than spelling the string twice.
+- `device=` by **partlabel**, not `/dev/sdaN`. The GPT labels `10-partition.sh`
+  already sets are the stable anchor across sda/vda/nvme; `install.sh`'s
+  string-concatenation device naming must not leak into the installed system.
+- `resize=true` is RAUC's own answer to the grow problem in point 5 — no
+  post-install hook needed.
+- `data-directory` on `/data`: slot status has to survive the slot being
+  overwritten, so it must not be per-slot.
+
+**2. Keyring into the image.** `keys/rauc-dev-cert.pem` →
+`/etc/rauc/keyring.pem`, another `build-rootfs.d` step. Decide before shipping:
+a baked-in dev cert means whoever holds `keys/rauc-dev-key.pem` can update every
+box ever built. Same problem family as "Baked-in admin user" below — decide
+both at once.
+
+**3. Bootloader rework.** The largest piece; details in "Boot side" below.
+RAUC's GRUB backend expects `ORDER` plus `<bootname>_OK` / `<bootname>_TRY` in
+grubenv (so `bootname=A` ⇒ `A_OK`, `A_TRY`), and GRUB's scripting cannot reach
+the env implicitly — the config needs explicit `load_env --file=` /
+`save_env --file=`. RAUC ships a reference `grub.cfg` in `contrib/`; start from
+that rather than inventing the variable dance.
+
+**4. Per-slot state — the real blocker.** `21-fstab.sh`, `40-ssh-hostkeys.sh`
+and `50-config.sh` all write into `$TARGET`, i.e. slot A. RAUC writes a
+*pristine image* into B, which contains none of them: no fstab, no host keys,
+no `machine.conf`. Worse, **both slots end up with the same filesystem UUID** —
+`make-image.sh` runs `mkfs.ext4` once at build time, so the UUID is baked into
+the image and lands in whichever slot receives it. `21-fstab.sh` writes
+`UUID=$ROOT_UUID / ext4`, which becomes ambiguous the moment slot B exists;
+resolution then depends on enumeration order. Root must come from
+`root=PARTUUID=` on the cmdline (PARTUUIDs are per-partition and genuinely
+distinct), and the fstab `/` line must stop keying on the fs UUID. Fix belongs
+with "Shared state on `/data`" below.
+
+**5. `10-partition.sh`.** Replace `mkfs.ext4 -L rootfs-b "$ROOTFS_B"` with
+`wipefs -a "$ROOTFS_B"`. The comment's stated goal is clearing stale
+signatures, which is exactly what wipefs does; the filesystem is overwritten
+wholesale on the first update, and the `rootfs-b` *fs* label silently becomes
+`rootfs` (the image's neutral label) as soon as RAUC writes the slot. Keep the
+GPT partition labels — they are what point 1 depends on. Nothing else in the
+layout needs to change.
+
+**6. Install path — `rauc install` cannot run in the live env.** It picks the
+target by first identifying the *booted* slot from the kernel cmdline; the
+installer boots from ISO, so nothing matches and there is no target group. The
+RAUC docs have no rescue/installer story. Options: keep the `dd` in
+`20-rootfs.sh` (status quo, and the bundle stays purely an update artifact), or
+ship the bundle on the ISO and `rauc mount` it so the installer `dd`s out of a
+signature- and verity-checked mountpoint. `rauc write-slot` is the wrong tool —
+it takes a bare image, "bypassing all update logic" including signature
+verification, so it buys nothing over `dd`.
+
+**7. Mark-good service.** A unit on the installed system that health-checks
+(k3s up, node Ready, system pods Running) and calls `rauc status mark-good`.
+Because GRUB's fallback is one-shot with no try-counting, this unit must *fail
+actively* — reboot — when the checks do not pass.
+
+**8. Secure Boot limit, accepted going in.** shim verifies GRUB, but `grub.cfg`
+and `grubenv` on the ESP are **not** signature-covered: anyone who can write the
+ESP can redirect the boot. Inherent to GRUB-based A/B, and the strongest
+argument for the systemd-boot + UKI alternative listed above.
+
+**Open:** `VERSION` currently defaults to `git describe`, so bundles carry
+strings like `with-lima-x86-targets-64-g755b219` in the manifest — set it
+explicitly for anything handed out. Production signing key custody is
+undecided.
 
 ### Boot side — the missing glue (GRUB)
 
@@ -128,19 +242,22 @@ it needs the identical artifact, fetched rather than found on a medium.
   `/boot/efi/grub`, re-run `grub-install`) so GRUB core's baked-in fs UUID
   becomes the ESP's — today it points at slot A, so slot B's grub.cfg would
   never be read.
-- Replace generated config with a **static hand-written grub.cfg on the
-  ESP**: two entries (A/B) selecting partition by PARTUUID and passing
-  `root=PARTUUID=...`; `load_env` / `next_entry` / `saved_entry` dance at
-  the top; `grubenv` lives on the ESP too (shared, GRUB-writable, untouched
-  by the updater). Written once by `install.sh`, never regenerated by
-  `grub-mkconfig`.
-- Update protocol: the updater writes B → `grub-reboot 'Appliance B'`
-  (one-shot: next boot only, then auto-returns to default) → mark-good
-  service on the new slot runs health checks (k3s up, node Ready) →
-  `grub-set-default` makes it permanent. Failure path: watchdog or
-  `panic=10` reboots → back on A automatically. Limitation vs systemd-boot:
-  one-reboot fallback, no try-counting — so the mark-good unit must *fail
-  actively* (reboot) if health checks don't pass.
+- Replace the generated config with a **hand-written grub.cfg on the ESP**:
+  two entries (A/B) selecting the partition by PARTUUID and passing
+  `root=PARTUUID=...`, with explicit `load_env --file=` / `save_env --file=`
+  over RAUC's `ORDER` / `A_OK` / `A_TRY` / `B_OK` / `B_TRY`. `grubenv` lives on
+  the ESP too — shared, GRUB-writable, and outside both slots.
+  `grub-mkconfig` drops out of `30-bootloader.sh` entirely: its job is
+  enumerating kernels on one root, which is the wrong model here.
+  The *logic* is static, but `parted` assigns PARTUUIDs randomly per install,
+  so the installer expands a template rather than copying a file verbatim.
+- Update protocol, with RAUC driving it: `rauc install` writes the inactive
+  slot and sets grubenv itself (no hand-rolled `grub-reboot` /
+  `grub-set-default`) → reboot → mark-good service on the new slot health-checks
+  and calls `rauc status mark-good`, which sets `<bootname>_OK`. Failure path:
+  the slot never marks good, and the next boot falls back. Limitation vs
+  systemd-boot: one try per slot, no counting — so the mark-good unit must
+  *fail actively* (reboot) when checks don't pass.
 - Alternative considered: `bootctl install` (systemd-boot) gives boot
   counting + `systemd-bless-boot` for free; stays an option if the GRUB
   emulation gets hairy.
@@ -181,10 +298,15 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
   that behaviour.
 
   **Consequence until `/data` persistence lands:** `/etc/ssh` is per-slot and
-  the installer does not run for a sysupdate-written slot B, so **slot B boots
+  the installer does not run for a RAUC-written slot B, so **slot B boots
   with no host keys at all and sshd fails to start** — worse than key rotation.
   This makes persistence a hard blocker for A/B, not a nicety. Same fix and same
   early-boot ordering as `/etc/machine-id` above; do them together.
+- **The same trap, for every install-time-generated file.** Host keys are just
+  the one already debugged: `21-fstab.sh` and `50-config.sh` also write only
+  into slot A, so a RAUC-written B has no fstab and no `machine.conf` either.
+  Treat "written by an `installer.d` step" as the marker for "missing in slot
+  B" and audit the whole directory, rather than fixing these one at a time.
 - `machine.conf`, k3s `config.yaml` (`K3S_CONFIG_FILE`), hostname, per-node
   netplan, admin `authorized_keys` → `/data`.
 - `/var/log/journal` → `/data` (`Storage=persistent`): cross-slot logs, so
@@ -213,9 +335,12 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
   the k3s *binary*; `/data` carries the *images*.
 - Rule: an update shipping a different k3s version ⇒ the matching
   `k3s-airgap-<ver>.tar.zst` must be in `/data/k3s/agent/images/` **before**
-  `grub-reboot` into the new slot. Delivery options: a second sysupdate
-  transfer (`Type=regular-file` targeting that dir) or the
-  USB/management-agent flow copies it alongside the rootfs image. If missed,
+  rebooting into the new slot. Delivery options: a RAUC install hook that
+  stages it out of the bundle, or the USB/management-agent flow copying it
+  alongside the bundle. A hook keeps the pairing atomic but puts ~200 MB back
+  into the bundle — the thing the tarballs are on `/data` to avoid — so the
+  out-of-band copy is probably right, with the hook only *checking* the file
+  is present. If missed,
   the mark-good health check (node Ready, system pods Running) should fail
   the trial boot and fall back — A/B catches this class of mistake.
 - Rollback safety comes from the content store being shared and additive:
@@ -235,6 +360,11 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
 - Fixed (2026-07-29): `make-image.sh` labeled every image `rootfs-a` — now
   uses the neutral `rootfs`; slot identity is the GPT partition label, so an
   image landing in slot B no longer claims to be A.
+- **Still open, same root cause: the fs *UUID* is baked in too.** `mkfs.ext4`
+  runs once at build time, so every slot written from a given image shares one
+  filesystem UUID — neutral labels do not help here. Anything resolving
+  `UUID=` or `LABEL=rootfs` becomes ambiguous once slot B is populated; use
+  PARTUUID (see "Going full RAUC" point 4).
 - `resize2fs -M` shrinks the image but root is rw for now → add
   `x-systemd.growfs` to the root fstab entry (or fixed-size images later
   when root goes ro).
@@ -247,9 +377,10 @@ share `/etc` wholesale (image owns os-release/PAM/nsswitch/presets).
   former life.
   **Chosen fix (deferred): `blkdiscard` before every image write** — in
   `10-partition.sh` after repartitioning (whole disk, also speeds up the
-  install `dd` on SSDs) and in the sysupdate flow (inactive slot before
-  writing the update). Full-size images were the alternative (zstd makes the
-  zeroed tail ~free in the artifact) but discard is one line in each place.
+  install `dd` on SSDs) and before RAUC writes the inactive slot — the latter
+  is a RAUC install hook, not something the installer can do. Full-size images
+  were the alternative (zstd makes the zeroed tail ~free in the artifact) but
+  discard is one line in each place.
 
 ### Caveat: rollback is OS-level only
 
@@ -266,7 +397,8 @@ failover mode: embedded etcd members carry state across slots.)
 `/etc/appliance/machine.conf` from a heredoc — single-node server,
 `CLUSTER_INIT=true`, `CLUSTER_TOKEN=changeme`. The `machine.conf.example`
 template that used to ride the ISO is gone, and with it the `installer/`
-directory; the ISO now carries only `rootfs.raw.zst`.
+directory; the ISO now carries only the payload image and the k3s air-gap
+tarballs.
 
 **What that costs:** the file is the only genuinely per-node input
 (`ROLE`, `CLUSTER_INIT`, `SERVER_URL`, `CLUSTER_TOKEN`), and it is no longer
@@ -297,16 +429,20 @@ cmdline, or accepting it only from the medium. Same problem family as
 
 ## Baked-in admin user (temporary — fix before shipping)
 
-`build-rootfs.sh` bakes `$ADMIN_USERNAME` (default `admin`, sudo group) with
-the fixed `$ADMIN_PASSWORD` (default `appliance`) into the payload image:
+`rootfs/build-rootfs.d/10-admin-user.sh` bakes `$ADMIN_USERNAME` (default
+`admin`, sudo group) with the fixed `$ADMIN_PASSWORD` (default `appliance`,
+hashed on the build host with `openssl passwd -6`) into the payload image:
 every box built from the same invocation shares credentials, and password
 ssh login is enabled. Acceptable for the demo phase only. Later, pick one:
 
 - Per-device credentials via `machine.conf` + firstboot — blocked on `/etc`
   persistence across A/B slots (see "Shared state on `/data`"): a
   firstboot-created user exists only in slot A's `/etc` today.
-- At minimum: commit a crypt hash instead of cleartext
-  (`useradd -p "$(openssl passwd -6 ...)"`), force a password change on
-  first login (`chage -d 0`), and/or disable ssh password auth in favor of
-  an `authorized_keys` drop from `machine.conf` (keys on `/data` per the
-  shared-state plan).
+- At minimum: force a password change on first login (`chage -d 0`), and/or
+  disable ssh password auth in favor of an `authorized_keys` drop from
+  `machine.conf` (keys on `/data` per the shared-state plan). The hash half is
+  already done — the step hashes with `openssl passwd -6` and passes
+  `useradd -p`, because `chpasswd --prefix` does not exist on the 24.04
+  shadow-utils the GitHub runners carry.
+- Decide together with RAUC's signing key custody ("Going full RAUC" point 2):
+  both are "one secret, baked into every box we ship" questions.
